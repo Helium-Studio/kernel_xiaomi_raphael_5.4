@@ -144,19 +144,23 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 		}
 	}
 
-	if (brightness > bl_max_level)
-		brightness = bl_max_level;
+	if (brightness > brightness_max_level)
+		brightness = brightness_max_level;
 	if (brightness > c_conn->thermal_max_brightness)
 		brightness = c_conn->thermal_max_brightness;
 
-	if (!dsi_display->bl_config.bl_remap_flag) {
-		/* map UI brightness into driver backlight level with rounding */
-		bl_lvl = mult_frac(brightness, bl_max_level, brightness_max_level);
-	} else
-		bl_lvl = brightness;
+	if (!brightness) {
+		bl_lvl = 0;
+	} else if (!dsi_display->panel->bl_config.bl_remap_flag) {
+		int bl_min = dsi_display->panel->bl_config.bl_min_level ?: 1;
+		int bl_range = bl_max_level - bl_min;
 
-	if (!bl_lvl && brightness)
-		bl_lvl = 1;
+		/* map UI brightness into driver backlight level rounding it */
+		bl_lvl = bl_min + DIV_ROUND_CLOSEST((brightness - 1) * bl_range,
+			brightness_max_level - 1);
+	} else {
+		bl_lvl = brightness;
+	}
 
 	if (!c_conn->allow_bl_update) {
 		c_conn->unset_bl_level = bl_lvl;
