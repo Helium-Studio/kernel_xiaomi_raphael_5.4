@@ -1170,6 +1170,7 @@ struct dwc3_scratchpad_array {
  * @wait_linkstate: waitqueue for waiting LINK to move into required state
  * @remote_wakeup_work: use to perform remote wakeup from this context
  * @dual_port: If true, this core supports two ports
+ * @core_id: usb core id to differentiate different controller
  */
 struct dwc3 {
 	struct work_struct	drd_work;
@@ -1425,6 +1426,7 @@ struct dwc3 {
 	wait_queue_head_t	wait_linkstate;
 	struct work_struct	remote_wakeup_work;
 	bool			dual_port;
+	int			core_id;
 };
 
 #define INCRX_BURST_MODE 0

@@ -1472,6 +1472,10 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 				&hird_threshold);
 	dwc->dis_start_transfer_quirk = device_property_read_bool(dev,
 				"snps,dis-start-transfer-quirk");
+
+	dwc->core_id = -1;
+	device_property_read_u32(dev, "usb-core-id", &dwc->core_id);
+
 	dwc->usb3_lpm_capable = device_property_read_bool(dev,
 				"snps,usb3_lpm_capable");
 	dwc->usb2_lpm_disable = device_property_read_bool(dev,
