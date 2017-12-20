@@ -1399,17 +1399,13 @@ int gpiochip_add_data_with_key(struct gpio_chip *chip, void *data,
 	for (i = 0; i < chip->ngpio; i++) {
 		struct gpio_desc *desc = &gdev->descs[i];
 
-		if (chip->get_direction && gpiochip_line_is_valid(chip, i)) {
-			if (!chip->get_direction(chip, i))
-				set_bit(FLAG_IS_OUT, &desc->flags);
-			else
-				clear_bit(FLAG_IS_OUT, &desc->flags);
-		} else {
-			if (!chip->direction_input)
-				set_bit(FLAG_IS_OUT, &desc->flags);
-			else
-				clear_bit(FLAG_IS_OUT, &desc->flags);
-		}
+		/* REVISIT: most hardware initializes GPIOs as inputs (often
+		 * with pullups enabled) so power usage is minimized. Linux
+		 * code should set the gpio direction first thing; but until
+		 * it does, and in case chip->get_direction is not set, we may
+		 * expose the wrong direction in sysfs.
+		 */
+		desc->flags = !chip->direction_input ? (1 << FLAG_IS_OUT) : 0;
 	}
 
 	acpi_gpiochip_add(chip);
