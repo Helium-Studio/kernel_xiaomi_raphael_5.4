@@ -124,6 +124,7 @@ Optional properties:
 			compliance mode, pattern 14.
  - snps,gen2-tx-de-emph3: This register is for setting TX deemphasis used in
 			compliance mode, pattern 16.
+ - snps,usb3-u1u2-disable: If present, disable U1U2 low power modes in Superspeed mode
 
  - in addition all properties from usb-xhci.txt from the current directory are
    supported as well
