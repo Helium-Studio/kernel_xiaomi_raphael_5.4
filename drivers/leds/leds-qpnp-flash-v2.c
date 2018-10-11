@@ -2974,7 +2974,7 @@ static int qpnp_flash_led_probe(struct platform_device *pdev)
 
 	led->pmic_type = (uintptr_t)of_device_get_match_data(&pdev->dev);
 
-	if (led->pmic_type == PM6150L)
+	if ((led->pmic_type == PM6150L) || (led->pmic_type == PM8150L))
 		led->wa_flags |= PM6150L_IRES_WA;
 
 	led->pdev = pdev;
