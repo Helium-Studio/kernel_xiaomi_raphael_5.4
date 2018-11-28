@@ -17,7 +17,6 @@ msm-vidc-objs := vidc/msm_v4l2_vidc.o \
                 vidc/hfi_response_handler.o \
                 vidc/hfi_packetization.o \
                 vidc/vidc_hfi.o \
-                vidc/venus_boot.o \
                 vidc/msm_vidc_clocks.o \
                 vidc/governors/msm_vidc_dyn_gov.o \
                 vidc/governors/msm_vidc_ar50_dyn_gov.o
