@@ -165,7 +165,7 @@
 			hw-thd-dat = <22>;
 			hw-thd-sta = <162>;
 			hw-tbuf = <227>;
-			hw-scl-stretch-en = <0>;
+			hw-scl-stretch-en = <1>;
 			hw-trdhld = <6>;
 			hw-tsp = <3>;
 			cci-clk-src = <37500000>;
@@ -180,7 +180,7 @@
 			hw-thd-dat = <22>;
 			hw-thd-sta = <35>;
 			hw-tbuf = <62>;
-			hw-scl-stretch-en = <0>;
+			hw-scl-stretch-en = <1>;
 			hw-trdhld = <6>;
 			hw-tsp = <3>;
 			cci-clk-src = <37500000>;
@@ -195,7 +195,7 @@
 			hw-thd-dat = <22>;
 			hw-thd-sta = <35>;
 			hw-tbuf = <62>;
-			hw-scl-stretch-en = <1>;
+			hw-scl-stretch-en = <0>;
 			hw-trdhld = <6>;
 			hw-tsp = <3>;
 			cci-clk-src = <37500000>;
@@ -260,7 +260,7 @@
 			hw-thd-dat = <22>;
 			hw-thd-sta = <162>;
 			hw-tbuf = <227>;
-			hw-scl-stretch-en = <0>;
+			hw-scl-stretch-en = <1>;
 			hw-trdhld = <6>;
 			hw-tsp = <3>;
 			cci-clk-src = <37500000>;
@@ -275,7 +275,7 @@
 			hw-thd-dat = <22>;
 			hw-thd-sta = <35>;
 			hw-tbuf = <62>;
-			hw-scl-stretch-en = <0>;
+			hw-scl-stretch-en = <1>;
 			hw-trdhld = <6>;
 			hw-tsp = <3>;
 			cci-clk-src = <37500000>;
@@ -290,7 +290,7 @@
 			hw-thd-dat = <22>;
 			hw-thd-sta = <35>;
 			hw-tbuf = <62>;
-			hw-scl-stretch-en = <1>;
+			hw-scl-stretch-en = <0>;
 			hw-trdhld = <6>;
 			hw-tsp = <3>;
 			cci-clk-src = <37500000>;

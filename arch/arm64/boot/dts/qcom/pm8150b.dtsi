@@ -636,6 +636,7 @@
 		thermal-governor = "user_space";
 		thermal-sensors = <&pm8150b_adc_tm ADC5_AMUX_THM2_100K_PU>;
 		wake-capable-sensor;
+		disable-thermal-zone;
 		trips {
 			active-config0 {
 				temperature = <125000>;
@@ -810,6 +811,7 @@
 		wake-capable-sensor;
 		tracks-low;
 
+		disable-thermal-zone;
 		trips {
 			soc_trip:soc-trip {
 				temperature = <10>;

@@ -26,8 +26,11 @@
 #include "display/dsi-panel-sw43404-amoled-dsc-fhd-plus-cmd.dtsi"
 #include "display/dsi-panel-nt36850-truly-dualmipi-wqhd-cmd.dtsi"
 #include "display/dsi-panel-rm69299-visionox-amoled-fhd-plus-video.dtsi"
+#include "display/dsi-panel-ss-fhd-ea8076-cmd.dtsi"
+#include "display/dsi-panel-ss-fhd-ea8076-global-cmd.dtsi"
 #include <dt-bindings/clock/mdss-7nm-pll-clk.h>
 
+/*
 &tlmm {
 	display_panel_avdd_eldo_default: display_panel_avdd_eldo_default {
 		mux {
@@ -42,6 +45,7 @@
 		};
 	};
 };
+*/
 
 &soc {
 	dsi_panel_pwr_supply: dsi_panel_pwr_supply {
@@ -162,6 +166,7 @@
 		};
 	};
 
+	/*
 	display_panel_avdd_eldo: display-gpio-regulator@0 {
 		compatible = "regulator-fixed";
 		regulator-name = "display_panel_avdd_eldo";
@@ -173,6 +178,33 @@
 		regulator-boot-on;
 		pinctrl-names = "default";
 		pintctrl-0 = <&display_panel_avdd_eldo_default>;
+	};
+	*/
+
+	dsi_amoled_panel_pwr_supply: dsi_amoled_panel_pwr_supply {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "vddio";
+			qcom,supply-min-voltage = <1800000>;
+			qcom,supply-max-voltage = <1800000>;
+			qcom,supply-enable-load = <62000>;
+			qcom,supply-disable-load = <80>;
+			//qcom,supply-post-on-sleep = <20>;
+		};
+
+		qcom,panel-supply-entry@1 {
+			reg = <1>;
+			qcom,supply-name = "vci";
+			qcom,supply-min-voltage = <3000000>;
+			qcom,supply-max-voltage = <3000000>;
+			qcom,supply-enable-load = <62000>;
+			qcom,supply-disable-load = <80>;
+			qcom,supply-post-on-sleep = <10>;
+			qcom,supply-pre-off-sleep = <10>;
+		};
 	};
 
 	sde_dsi: qcom,dsi-display-primary {
@@ -205,7 +237,8 @@
 		vddio-supply = <&pm8150_l14>;
 		lab-supply = <&lcdb_ldo_vreg>;
 		ibb-supply = <&lcdb_ncp_vreg>;
-		vdd-supply = <&display_panel_avdd_eldo>;
+		//vdd-supply = <&display_panel_avdd_eldo>;
+		vci-supply = <&pm8150_l13>;
 
 		qcom,mdp = <&mdss_mdp>;
 		qcom,dsi-default-panel = <&dsi_sharp_4k_dsc_cmd>;
@@ -241,7 +274,7 @@
 		vddio-supply = <&pm8150_l14>;
 		lab-supply = <&lcdb_ldo_vreg>;
 		ibb-supply = <&lcdb_ncp_vreg>;
-		vdd-supply = <&display_panel_avdd_eldo>;
+		//vdd-supply = <&display_panel_avdd_eldo>;
 
 		qcom,mdp = <&mdss_mdp>;
 	};
@@ -706,6 +739,32 @@
 			qcom,display-topology = <2 0 2>;
 			qcom,default-topology-index = <0>;
 			qcom,mdss-mdp-transfer-time-us = <16700>;
+		};
+	};
+};
+
+&dsi_ss_fhd_ea8076_cmd {
+	qcom,mdss-dsi-t-clk-post = <0x0F>;
+	qcom,mdss-dsi-t-clk-pre = <0x37>;
+	qcom,mdss-dsi-display-timings {
+		timing@0{
+			qcom,mdss-dsi-panel-phy-timings = [00 24 0A 0A 26 25 09
+				0A 06 03 04 00 1E 1A];
+			qcom,display-topology = <1 0 1>;
+			qcom,default-topology-index = <0>;
+		};
+	};
+};
+
+&dsi_ss_fhd_ea8076_global_cmd {
+	qcom,mdss-dsi-t-clk-post = <0x1A>;
+	qcom,mdss-dsi-t-clk-pre = <0x1E>;
+	qcom,mdss-dsi-display-timings {
+		timing@0{
+			qcom,mdss-dsi-panel-phy-timings = [00 24 0A 0A 26 24 0A
+				0A 06 03 04 00 1E 1A];
+			qcom,display-topology = <1 0 1>;
+			qcom,default-topology-index = <0>;
 		};
 	};
 };
