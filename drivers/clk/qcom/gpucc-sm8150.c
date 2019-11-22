@@ -14,27 +14,21 @@
 #define pr_fmt(fmt) "clk: %s: " fmt, __func__
 
 #include <linux/kernel.h>
-#include <linux/bitops.h>
 #include <linux/err.h>
-#include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
-#include <linux/clk.h>
-#include <linux/clk-provider.h>
 #include <linux/regmap.h>
-#include <linux/reset-controller.h>
 
 #include <dt-bindings/clock/qcom,gpucc-sm8150.h>
 
 #include "common.h"
 #include "clk-regmap.h"
-#include "clk-pll.h"
 #include "clk-rcg.h"
 #include "clk-branch.h"
 #include "reset.h"
 #include "clk-alpha-pll.h"
-#include "vdd-level.h"
+#include "vdd-level-sm8150.h"
 
 #define F(f, s, h, m, n) { (f), (s), (2 * (h) - 1), (m), (n) }
 
@@ -97,7 +91,9 @@ static struct clk_alpha_pll gpu_cc_pll1 = {
 			.name = "gpu_cc_pll1",
 			.parent_names = (const char *[]){ "bi_tcxo" },
 			.num_parents = 1,
-			.ops = &clk_alpha_pll_trion_ops,
+			.ops = &clk_trion_pll_ops,
+		},
+		.vdd_data = {
 			.vdd_class = &vdd_mx,
 			.num_rate_max = VDD_NUM,
 			.rate_max = (unsigned long[VDD_NUM]) {
@@ -137,6 +133,8 @@ static struct clk_rcg2 gpu_cc_gmu_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_cx,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -405,8 +403,8 @@ MODULE_DEVICE_TABLE(of, gpu_cc_sm8150_match_table);
 static void gpu_cc_sm8150_fixup_sdmshrike(void)
 {
 	gpu_cc_gmu_clk_src.freq_tbl = ftbl_gpu_cc_gmu_clk_src_sdmshrike;
-	gpu_cc_gmu_clk_src.clkr.hw.init->rate_max[VDD_LOW] = 400000000;
-	gpu_cc_gmu_clk_src.clkr.hw.init->rate_max[VDD_LOW_L1] = 500000000;
+	gpu_cc_gmu_clk_src.clkr.vdd_data.rate_max[VDD_LOW] = 400000000;
+	gpu_cc_gmu_clk_src.clkr.vdd_data.rate_max[VDD_LOW_L1] = 500000000;
 }
 
 static int gpu_cc_sm8150_fixup(struct platform_device *pdev)

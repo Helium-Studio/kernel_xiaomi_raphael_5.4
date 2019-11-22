@@ -14,28 +14,23 @@
 #define pr_fmt(fmt) "clk: %s: " fmt, __func__
 
 #include <linux/kernel.h>
-#include <linux/bitops.h>
 #include <linux/err.h>
-#include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/regmap.h>
-#include <linux/delay.h>
-#include <linux/reset-controller.h>
 
 #include <dt-bindings/clock/qcom,npucc-sm8150.h>
 
 #include "common.h"
 #include "clk-regmap.h"
-#include "clk-pll.h"
 #include "clk-rcg.h"
 #include "clk-branch.h"
 #include "reset.h"
 #include "clk-alpha-pll.h"
-#include "vdd-level.h"
+#include "vdd-level-sm8150.h"
 
 #define F(f, s, h, m, n) { (f), (s), (2 * (h) - 1), (m), (n) }
 
@@ -134,7 +129,9 @@ static struct clk_alpha_pll npu_cc_pll0 = {
 			.name = "npu_cc_pll0",
 			.parent_names = (const char *[]){ "bi_tcxo" },
 			.num_parents = 1,
-			.ops = &clk_alpha_pll_trion_ops,
+			.ops = &clk_trion_pll_ops,
+		},
+		.vdd_data = {
 			.vdd_class = &vdd_cx,
 			.num_rate_max = VDD_NUM,
 			.rate_max = (unsigned long[VDD_NUM]) {
@@ -166,7 +163,7 @@ static struct clk_alpha_pll_postdiv npu_cc_pll0_out_even = {
 		.parent_names = (const char *[]){ "npu_cc_pll0" },
 		.num_parents = 1,
 		.flags = CLK_SET_RATE_PARENT,
-		.ops = &clk_alpha_pll_postdiv_trion_ops,
+		.ops = &clk_trion_pll_postdiv_ops,
 	},
 };
 
@@ -208,7 +205,9 @@ static struct clk_alpha_pll npu_cc_pll1 = {
 			.name = "npu_cc_pll1",
 			.parent_names = (const char *[]){ "bi_tcxo" },
 			.num_parents = 1,
-			.ops = &clk_alpha_pll_trion_ops,
+			.ops = &clk_trion_pll_ops,
+		},
+		.vdd_data = {
 			.vdd_class = &vdd_cx,
 			.num_rate_max = VDD_NUM,
 			.rate_max = (unsigned long[VDD_NUM]) {
@@ -232,7 +231,7 @@ static struct clk_alpha_pll_postdiv npu_cc_pll1_out_even = {
 		.parent_names = (const char *[]){ "npu_cc_pll1" },
 		.num_parents = 1,
 		.flags = CLK_SET_RATE_PARENT,
-		.ops = &clk_alpha_pll_postdiv_trion_ops,
+		.ops = &clk_trion_pll_postdiv_ops,
 	},
 };
 
@@ -282,6 +281,8 @@ static struct clk_rcg2 npu_cc_cal_dp_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_cx,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -327,6 +328,8 @@ static struct clk_rcg2 npu_cc_npu_core_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_cx,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -666,16 +669,16 @@ static void npu_cc_sm8150_fixup_sm8150v2(struct regmap *regmap)
 	clk_trion_pll_configure(&npu_cc_pll0, regmap, &npu_cc_pll0_config_sm8150_v2);
 	clk_trion_pll_configure(&npu_cc_pll1, regmap, &npu_cc_pll1_config_sm8150_v2);
 	npu_cc_cal_dp_clk_src.freq_tbl = ftbl_npu_cc_cal_dp_clk_src_sm8150_v2;
-	npu_cc_cal_dp_clk_src.clkr.hw.init->rate_max[VDD_MIN] = 0;
-	npu_cc_cal_dp_clk_src.clkr.hw.init->rate_max[VDD_LOW] = 400000000;
-	npu_cc_cal_dp_clk_src.clkr.hw.init->rate_max[VDD_LOW_L1] = 487000000;
-	npu_cc_cal_dp_clk_src.clkr.hw.init->rate_max[VDD_NOMINAL] = 652000000;
-	npu_cc_cal_dp_clk_src.clkr.hw.init->rate_max[VDD_HIGH] = 811000000;
-	npu_cc_cal_dp_clk_src.clkr.hw.init->rate_max[VDD_HIGH_L1] = 908000000;
+	npu_cc_cal_dp_clk_src.clkr.vdd_data.rate_max[VDD_MIN] = 0;
+	npu_cc_cal_dp_clk_src.clkr.vdd_data.rate_max[VDD_LOW] = 400000000;
+	npu_cc_cal_dp_clk_src.clkr.vdd_data.rate_max[VDD_LOW_L1] = 487000000;
+	npu_cc_cal_dp_clk_src.clkr.vdd_data.rate_max[VDD_NOMINAL] = 652000000;
+	npu_cc_cal_dp_clk_src.clkr.vdd_data.rate_max[VDD_HIGH] = 811000000;
+	npu_cc_cal_dp_clk_src.clkr.vdd_data.rate_max[VDD_HIGH_L1] = 908000000;
 	npu_cc_npu_core_clk_src.freq_tbl =
 		ftbl_npu_cc_npu_core_clk_src_sm8150_v2;
-	npu_cc_npu_core_clk_src.clkr.hw.init->rate_max[VDD_MIN] = 0;
-	npu_cc_npu_core_clk_src.clkr.hw.init->rate_max[VDD_HIGH] = 400000000;
+	npu_cc_npu_core_clk_src.clkr.vdd_data.rate_max[VDD_MIN] = 0;
+	npu_cc_npu_core_clk_src.clkr.vdd_data.rate_max[VDD_HIGH] = 400000000;
 }
 
 static int npu_cc_sm8150_fixup(struct platform_device *pdev,

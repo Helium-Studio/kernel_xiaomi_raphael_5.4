@@ -14,65 +14,27 @@
 #define pr_fmt(fmt) "clk: %s: " fmt, __func__
 
 #include <linux/kernel.h>
-#include <linux/bitops.h>
 #include <linux/err.h>
-#include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/regmap.h>
-#include <linux/reset-controller.h>
-#include <linux/msm-bus.h>
 
 #include <dt-bindings/clock/qcom,videocc-sm8150.h>
-#include <dt-bindings/msm/msm-bus-ids.h>
 
 #include "common.h"
 #include "clk-regmap.h"
-#include "clk-pll.h"
 #include "clk-rcg.h"
 #include "clk-branch.h"
 #include "reset.h"
 #include "clk-alpha-pll.h"
-#include "vdd-level.h"
+#include "vdd-level-sm8150.h"
 
 #define F(f, s, h, m, n) { (f), (s), (2 * (h) - 1), (m), (n) }
 
-#define MSM_BUS_VECTOR(_src, _dst, _ab, _ib)	\
-{						\
-	.src = _src,				\
-	.dst = _dst,				\
-	.ab = _ab,				\
-	.ib = _ib,				\
-}
-
-static DEFINE_VDD_REGULATORS(vdd_mm, VDD_NUM_MM, 1, vdd_corner);
-
-static struct msm_bus_vectors clk_debugfs_vectors[] = {
-	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
-			MSM_BUS_SLAVE_VENUS_CFG, 0, 0),
-	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
-			MSM_BUS_SLAVE_VENUS_CFG, 0, 1),
-};
-
-static struct msm_bus_paths clk_debugfs_usecases[] = {
-	{
-		.num_paths = 1,
-		.vectors = &clk_debugfs_vectors[0],
-	},
-	{
-		.num_paths = 1,
-		.vectors = &clk_debugfs_vectors[1],
-	}
-};
-
-static struct msm_bus_scale_pdata clk_debugfs_scale_table = {
-	.usecase = clk_debugfs_usecases,
-	.num_usecases = ARRAY_SIZE(clk_debugfs_usecases),
-	.name = "clk_videocc_debugfs",
-};
+static DEFINE_VDD_REGULATORS(vdd_mm, VDD_MM_NUM, 1, vdd_corner);
 
 enum {
 	P_BI_TCXO,
@@ -139,7 +101,9 @@ static struct clk_alpha_pll video_pll0 = {
 			.name = "video_pll0",
 			.parent_names = (const char *[]){ "bi_tcxo" },
 			.num_parents = 1,
-			.ops = &clk_alpha_pll_trion_ops,
+			.ops = &clk_trion_pll_ops,
+		},
+		.vdd_data = {
 			.vdd_class = &vdd_mm,
 			.num_rate_max = VDD_NUM,
 			.rate_max = (unsigned long[VDD_NUM]) {
@@ -184,6 +148,8 @@ static struct clk_rcg2 video_cc_iris_clk_src = {
 		.num_parents = 5,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -324,10 +290,10 @@ static void video_cc_sm8150_fixup_sm8150v2(struct regmap *regmap)
 	video_pll0.config = &video_pll0_config_sm8150_v2;
 
 	video_cc_iris_clk_src.freq_tbl = ftbl_video_cc_iris_clk_src_sm8150_v2;
-	video_cc_iris_clk_src.clkr.hw.init->rate_max[VDD_LOWER] = 240000000;
-	video_cc_iris_clk_src.clkr.hw.init->rate_max[VDD_LOW] = 338000000;
-	video_cc_iris_clk_src.clkr.hw.init->rate_max[VDD_NOMINAL] = 444000000;
-	video_cc_iris_clk_src.clkr.hw.init->rate_max[VDD_HIGH] = 533000000;
+	video_cc_iris_clk_src.clkr.vdd_data.rate_max[VDD_LOWER] = 240000000;
+	video_cc_iris_clk_src.clkr.vdd_data.rate_max[VDD_LOW] = 338000000;
+	video_cc_iris_clk_src.clkr.vdd_data.rate_max[VDD_NOMINAL] = 444000000;
+	video_cc_iris_clk_src.clkr.vdd_data.rate_max[VDD_HIGH] = 533000000;
 }
 
 static int video_cc_sm8150_fixup(struct platform_device *pdev,
@@ -351,8 +317,6 @@ static int video_cc_sm8150_probe(struct platform_device *pdev)
 	struct regmap *regmap;
 	struct clk *clk;
 	int ret;
-	int i;
-	unsigned int videocc_bus_id;
 
 	regmap = qcom_cc_map(pdev, &video_cc_sm8150_desc);
 	if (IS_ERR(regmap)) {
@@ -374,19 +338,6 @@ static int video_cc_sm8150_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "Unable to get vdd_mm regulator\n");
 		return PTR_ERR(vdd_mm.regulator[0]);
 	}
-
-	videocc_bus_id =
-		msm_bus_scale_register_client(&clk_debugfs_scale_table);
-	if (!videocc_bus_id) {
-		dev_err(&pdev->dev, "Unable to register for bw voting\n");
-		return -EPROBE_DEFER;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(video_cc_sm8150_clocks); i++)
-		if (video_cc_sm8150_clocks[i])
-			*(unsigned int *)(void *)
-			&video_cc_sm8150_clocks[i]->hw.init->bus_cl_id =
-							videocc_bus_id;
 
 	ret = video_cc_sm8150_fixup(pdev, regmap);
 	if (ret)

@@ -14,66 +14,27 @@
 #define pr_fmt(fmt) "clk: %s: " fmt, __func__
 
 #include <linux/kernel.h>
-#include <linux/bitops.h>
 #include <linux/err.h>
-#include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/regmap.h>
-#include <linux/reset-controller.h>
-#include <linux/msm-bus.h>
 
 #include <dt-bindings/clock/qcom,camcc-sm8150.h>
-#include <dt-bindings/msm/msm-bus-ids.h>
 
 #include "common.h"
-#include "clk-regmap.h"
-#include "clk-pll.h"
 #include "clk-rcg.h"
 #include "clk-branch.h"
 #include "reset.h"
 #include "clk-alpha-pll.h"
-#include "vdd-level.h"
+#include "vdd-level-sm8150.h"
 
 #define F(f, s, h, m, n) { (f), (s), (2 * (h) - 1), (m), (n) }
 
-#define MSM_BUS_VECTOR(_src, _dst, _ab, _ib)	\
-{						\
-	.src = _src,				\
-	.dst = _dst,				\
-	.ab = _ab,				\
-	.ib = _ib,				\
-}
-
-static DEFINE_VDD_REGULATORS(vdd_mm, VDD_NUM_MM, 1, vdd_corner);
+static DEFINE_VDD_REGULATORS(vdd_mm, VDD_MM_NUM, 1, vdd_corner);
 static DEFINE_VDD_REGULATORS(vdd_mx, VDD_NUM, 1, vdd_corner);
-
-static struct msm_bus_vectors clk_debugfs_vectors[] = {
-	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
-			MSM_BUS_SLAVE_CAMERA_CFG, 0, 0),
-	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
-			MSM_BUS_SLAVE_CAMERA_CFG, 0, 1),
-};
-
-static struct msm_bus_paths clk_debugfs_usecases[] = {
-	{
-		.num_paths = 1,
-		.vectors = &clk_debugfs_vectors[0],
-	},
-	{
-		.num_paths = 1,
-		.vectors = &clk_debugfs_vectors[1],
-	}
-};
-
-static struct msm_bus_scale_pdata clk_debugfs_scale_table = {
-	.usecase = clk_debugfs_usecases,
-	.num_usecases = ARRAY_SIZE(clk_debugfs_usecases),
-	.name = "clk_camcc_debugfs",
-};
 
 enum {
 	P_BI_TCXO,
@@ -201,7 +162,9 @@ static struct clk_alpha_pll cam_cc_pll0 = {
 			.name = "cam_cc_pll0",
 			.parent_names = (const char *[]){ "bi_tcxo" },
 			.num_parents = 1,
-			.ops = &clk_alpha_pll_trion_ops,
+			.ops = &clk_trion_pll_ops,
+		},
+		.vdd_data = {
 			.vdd_class = &vdd_mx,
 			.num_rate_max = VDD_NUM,
 			.rate_max = (unsigned long[VDD_NUM]) {
@@ -230,7 +193,7 @@ static struct clk_alpha_pll_postdiv cam_cc_pll0_out_even = {
 		.parent_names = (const char *[]){ "cam_cc_pll0" },
 		.num_parents = 1,
 		.flags = CLK_SET_RATE_PARENT,
-		.ops = &clk_alpha_pll_postdiv_trion_ops,
+		.ops = &clk_trion_pll_postdiv_ops,
 	},
 };
 
@@ -251,7 +214,7 @@ static struct clk_alpha_pll_postdiv cam_cc_pll0_out_odd = {
 		.parent_names = (const char *[]){ "cam_cc_pll0" },
 		.num_parents = 1,
 		.flags = CLK_SET_RATE_PARENT,
-		.ops = &clk_alpha_pll_postdiv_trion_ops,
+		.ops = &clk_trion_pll_postdiv_ops,
 	},
 };
 
@@ -294,7 +257,9 @@ static struct clk_alpha_pll cam_cc_pll1 = {
 			.name = "cam_cc_pll1",
 			.parent_names = (const char *[]){ "bi_tcxo" },
 			.num_parents = 1,
-			.ops = &clk_alpha_pll_trion_ops,
+			.ops = &clk_trion_pll_ops,
+		},
+		.vdd_data = {
 			.vdd_class = &vdd_mx,
 			.num_rate_max = VDD_NUM,
 			.rate_max = (unsigned long[VDD_NUM]) {
@@ -318,7 +283,7 @@ static struct clk_alpha_pll_postdiv cam_cc_pll1_out_even = {
 		.parent_names = (const char *[]){ "cam_cc_pll1" },
 		.num_parents = 1,
 		.flags = CLK_SET_RATE_PARENT,
-		.ops = &clk_alpha_pll_postdiv_trion_ops,
+		.ops = &clk_trion_pll_postdiv_ops,
 	},
 };
 
@@ -345,7 +310,9 @@ static struct clk_alpha_pll cam_cc_pll2 = {
 			.name = "cam_cc_pll2",
 			.parent_names = (const char *[]){ "bi_tcxo" },
 			.num_parents = 1,
-			.ops = &clk_alpha_pll_regera_ops,
+			.ops = &clk_regera_pll_ops,
+		},
+		.vdd_data = {
 			.vdd_class = &vdd_mx,
 			.num_rate_max = VDD_NUM,
 			.rate_max = (unsigned long[VDD_NUM]) {
@@ -375,7 +342,7 @@ static struct clk_alpha_pll_postdiv cam_cc_pll2_out_main = {
 		.parent_names = (const char *[]){ "cam_cc_pll2" },
 		.num_parents = 1,
 		.flags = CLK_SET_RATE_PARENT,
-		.ops = &clk_alpha_pll_postdiv_trion_ops,
+		.ops = &clk_trion_pll_postdiv_ops,
 	},
 };
 
@@ -418,7 +385,9 @@ static struct clk_alpha_pll cam_cc_pll3 = {
 			.name = "cam_cc_pll3",
 			.parent_names = (const char *[]){ "bi_tcxo" },
 			.num_parents = 1,
-			.ops = &clk_alpha_pll_trion_ops,
+			.ops = &clk_trion_pll_ops,
+		},
+		.vdd_data = {
 			.vdd_class = &vdd_mx,
 			.num_rate_max = VDD_NUM,
 			.rate_max = (unsigned long[VDD_NUM]) {
@@ -442,7 +411,7 @@ static struct clk_alpha_pll_postdiv cam_cc_pll3_out_even = {
 		.parent_names = (const char *[]){ "cam_cc_pll3" },
 		.num_parents = 1,
 		.flags = CLK_SET_RATE_PARENT,
-		.ops = &clk_alpha_pll_postdiv_trion_ops,
+		.ops = &clk_trion_pll_postdiv_ops,
 	},
 };
 
@@ -485,7 +454,9 @@ static struct clk_alpha_pll cam_cc_pll4 = {
 			.name = "cam_cc_pll4",
 			.parent_names = (const char *[]){ "bi_tcxo" },
 			.num_parents = 1,
-			.ops = &clk_alpha_pll_trion_ops,
+			.ops = &clk_trion_pll_ops,
+		},
+		.vdd_data = {
 			.vdd_class = &vdd_mx,
 			.num_rate_max = VDD_NUM,
 			.rate_max = (unsigned long[VDD_NUM]) {
@@ -509,7 +480,7 @@ static struct clk_alpha_pll_postdiv cam_cc_pll4_out_even = {
 		.parent_names = (const char *[]){ "cam_cc_pll4" },
 		.num_parents = 1,
 		.flags = CLK_SET_RATE_PARENT,
-		.ops = &clk_alpha_pll_postdiv_trion_ops,
+		.ops = &clk_trion_pll_postdiv_ops,
 	},
 };
 
@@ -536,6 +507,8 @@ static struct clk_rcg2 cam_cc_bps_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -570,6 +543,8 @@ static struct clk_rcg2 cam_cc_camnoc_axi_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -601,6 +576,8 @@ static struct clk_rcg2 cam_cc_cci_0_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -622,6 +599,8 @@ static struct clk_rcg2 cam_cc_cci_1_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -649,6 +628,8 @@ static struct clk_rcg2 cam_cc_cphy_rx_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -676,6 +657,8 @@ static struct clk_rcg2 cam_cc_csi0phytimer_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -697,6 +680,8 @@ static struct clk_rcg2 cam_cc_csi1phytimer_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -718,6 +703,8 @@ static struct clk_rcg2 cam_cc_csi2phytimer_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -739,6 +726,8 @@ static struct clk_rcg2 cam_cc_csi3phytimer_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -770,6 +759,8 @@ static struct clk_rcg2 cam_cc_fast_ahb_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -802,6 +793,8 @@ static struct clk_rcg2 cam_cc_fd_core_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -832,6 +825,8 @@ static struct clk_rcg2 cam_cc_icp_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -873,6 +868,8 @@ static struct clk_rcg2 cam_cc_ife_0_clk_src = {
 		.num_parents = 3,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -906,6 +903,8 @@ static struct clk_rcg2 cam_cc_ife_0_csid_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -948,6 +947,8 @@ static struct clk_rcg2 cam_cc_ife_1_clk_src = {
 		.num_parents = 3,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -972,6 +973,8 @@ static struct clk_rcg2 cam_cc_ife_1_csid_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -1004,6 +1007,8 @@ static struct clk_rcg2 cam_cc_ife_lite_0_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -1028,6 +1033,8 @@ static struct clk_rcg2 cam_cc_ife_lite_0_csid_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -1051,6 +1058,8 @@ static struct clk_rcg2 cam_cc_ife_lite_1_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -1075,6 +1084,8 @@ static struct clk_rcg2 cam_cc_ife_lite_1_csid_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -1116,6 +1127,8 @@ static struct clk_rcg2 cam_cc_ipe_0_clk_src = {
 		.num_parents = 3,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -1140,6 +1153,8 @@ static struct clk_rcg2 cam_cc_jpeg_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -1174,6 +1189,8 @@ static struct clk_rcg2 cam_cc_lrme_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -1206,6 +1223,8 @@ static struct clk_rcg2 cam_cc_mclk0_clk_src = {
 		.num_parents = 3,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mx,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -1227,6 +1246,8 @@ static struct clk_rcg2 cam_cc_mclk1_clk_src = {
 		.num_parents = 3,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mx,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -1248,6 +1269,8 @@ static struct clk_rcg2 cam_cc_mclk2_clk_src = {
 		.num_parents = 3,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mx,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -1269,6 +1292,8 @@ static struct clk_rcg2 cam_cc_mclk3_clk_src = {
 		.num_parents = 3,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mx,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -1298,6 +1323,8 @@ static struct clk_rcg2 cam_cc_qdss_debug_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -1327,6 +1354,8 @@ static struct clk_rcg2 cam_cc_slow_ahb_clk_src = {
 		.num_parents = 6,
 		.flags = CLK_SET_RATE_PARENT,
 		.ops = &clk_rcg2_ops,
+	},
+	.clkr.vdd_data = {
 		.vdd_class = &vdd_mm,
 		.num_rate_max = VDD_NUM,
 		.rate_max = (unsigned long[VDD_NUM]) {
@@ -2452,13 +2481,13 @@ static void cam_cc_sm8150_fixup_sm8150v2(struct regmap *regmap)
 	cam_cc_pll4.config = &cam_cc_pll4_config_sm8150_v2;
 
 	cam_cc_ife_0_clk_src.freq_tbl = ftbl_cam_cc_ife_0_clk_src_sm8150_v2;
-	cam_cc_ife_0_clk_src.clkr.hw.init->rate_max[VDD_NOMINAL] = 847000000;
-	cam_cc_ife_0_clk_src.clkr.hw.init->rate_max[VDD_HIGH] = 950000000;
+	cam_cc_ife_0_clk_src.clkr.vdd_data.rate_max[VDD_NOMINAL] = 847000000;
+	cam_cc_ife_0_clk_src.clkr.vdd_data.rate_max[VDD_HIGH] = 950000000;
 	cam_cc_ife_1_clk_src.freq_tbl = ftbl_cam_cc_ife_1_clk_src_sm8150_v2;
-	cam_cc_ife_1_clk_src.clkr.hw.init->rate_max[VDD_NOMINAL] = 847000000;
-	cam_cc_ife_1_clk_src.clkr.hw.init->rate_max[VDD_HIGH] = 950000000;
+	cam_cc_ife_1_clk_src.clkr.vdd_data.rate_max[VDD_NOMINAL] = 847000000;
+	cam_cc_ife_1_clk_src.clkr.vdd_data.rate_max[VDD_HIGH] = 950000000;
 	cam_cc_ipe_0_clk_src.freq_tbl = ftbl_cam_cc_ipe_0_clk_src_sm8150_v2;
-	cam_cc_ipe_0_clk_src.clkr.hw.init->rate_max[VDD_LOW] = 475000000;
+	cam_cc_ipe_0_clk_src.clkr.vdd_data.rate_max[VDD_LOW] = 475000000;
 }
 
 static int cam_cc_sm8150_fixup(struct platform_device *pdev,
@@ -2482,8 +2511,6 @@ static int cam_cc_sm8150_probe(struct platform_device *pdev)
 	struct regmap *regmap;
 	struct clk *clk;
 	int ret = 0;
-	int i;
-	unsigned int camcc_bus_id;
 
 	regmap = qcom_cc_map(pdev, &cam_cc_sm8150_desc);
 	if (IS_ERR(regmap)) {
@@ -2514,18 +2541,6 @@ static int cam_cc_sm8150_probe(struct platform_device *pdev)
 				"Unable to get vdd_mm regulator\n");
 		return PTR_ERR(vdd_mm.regulator[0]);
 	}
-
-	camcc_bus_id = msm_bus_scale_register_client(&clk_debugfs_scale_table);
-	if (!camcc_bus_id) {
-		dev_err(&pdev->dev, "Unable to register for bw voting\n");
-		return -EPROBE_DEFER;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(cam_cc_sm8150_clocks); i++)
-		if (cam_cc_sm8150_clocks[i])
-			*(unsigned int *)(void *)
-			&cam_cc_sm8150_clocks[i]->hw.init->bus_cl_id =
-			camcc_bus_id;
 
 	ret = cam_cc_sm8150_fixup(pdev, regmap);
 	if (ret)
