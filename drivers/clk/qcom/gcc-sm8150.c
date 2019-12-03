@@ -4359,11 +4359,17 @@ static int gcc_sm8150_probe(struct platform_device *pdev)
 	return ret;
 }
 
+static void gcc_sm8150_sync_state(struct device *dev)
+{
+	qcom_cc_sync_state(dev, &gcc_sm8150_desc);
+}
+
 static struct platform_driver gcc_sm8150_driver = {
 	.probe		= gcc_sm8150_probe,
 	.driver		= {
 		.name	= "gcc-sm8150",
 		.of_match_table = gcc_sm8150_match_table,
+		.sync_state = gcc_sm8150_sync_state,
 	},
 };
 

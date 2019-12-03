@@ -703,11 +703,17 @@ static int scc_sm8150_probe(struct platform_device *pdev)
 	return 0;
 }
 
+static void scc_cc_sm8150_sync_state(struct device *dev)
+{
+	qcom_cc_sync_state(dev, &scc_sm8150_desc);
+}
+
 static struct platform_driver scc_sm8150_driver = {
 	.probe		= scc_sm8150_probe,
 	.driver		= {
 		.name	= "scc-sm8150",
 		.of_match_table = scc_sm8150_match_table,
+		.sync_state = scc_cc_sm8150_sync_state,
 	},
 };
 

@@ -2553,11 +2553,17 @@ static int cam_cc_sm8150_probe(struct platform_device *pdev)
 	return ret;
 }
 
+static void cam_cc_sm8150_sync_state(struct device *dev)
+{
+	qcom_cc_sync_state(dev, &cam_cc_sm8150_desc);
+}
+
 static struct platform_driver cam_cc_sm8150_driver = {
 	.probe		= cam_cc_sm8150_probe,
 	.driver		= {
 		.name	= "cam_cc-sm8150",
 		.of_match_table = cam_cc_sm8150_match_table,
+		.sync_state = cam_cc_sm8150_sync_state,
 	},
 };
 

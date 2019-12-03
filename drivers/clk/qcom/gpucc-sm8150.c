@@ -452,11 +452,17 @@ static int gpu_cc_sm8150_probe(struct platform_device *pdev)
 	return ret;
 }
 
+static void gpu_cc_sm8150_sync_state(struct device *dev)
+{
+	qcom_cc_sync_state(dev, &gpu_cc_sm8150_desc);
+}
+
 static struct platform_driver gpu_cc_sm8150_driver = {
 	.probe		= gpu_cc_sm8150_probe,
 	.driver		= {
 		.name	= "gpu_cc-sm8150",
 		.of_match_table = gpu_cc_sm8150_match_table,
+		.sync_state = gpu_cc_sm8150_sync_state,
 	},
 };
 
