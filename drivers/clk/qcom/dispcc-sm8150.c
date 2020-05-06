@@ -36,6 +36,10 @@
 
 static DEFINE_VDD_REGULATORS(vdd_mm, VDD_MM_NUM, 1, vdd_corner);
 
+static struct clk_vdd_class *disp_cc_sm8150_regulators[] = {
+	&vdd_mm,
+};
+
 #define DISP_CC_MISC_CMD	0x8000
 
 enum {
@@ -1555,6 +1559,8 @@ static const struct qcom_cc_desc disp_cc_sm8150_desc = {
 	.num_clks = ARRAY_SIZE(disp_cc_sm8150_clocks),
 	.resets = disp_cc_sm8150_resets,
 	.num_resets = ARRAY_SIZE(disp_cc_sm8150_resets),
+	.clk_regulators = disp_cc_sm8150_regulators,
+	.num_clk_regulators = ARRAY_SIZE(disp_cc_sm8150_regulators),
 };
 
 static const struct of_device_id disp_cc_sm8150_match_table[] = {
@@ -1624,14 +1630,6 @@ static int disp_cc_sm8150_probe(struct platform_device *pdev)
 		return PTR_ERR(clk);
 	}
 	devm_clk_put(&pdev->dev, clk);
-
-	vdd_mm.regulator[0] = devm_regulator_get(&pdev->dev, "vdd_mm");
-	if (IS_ERR(vdd_mm.regulator[0])) {
-		if (PTR_ERR(vdd_mm.regulator[0]) != -EPROBE_DEFER)
-			dev_err(&pdev->dev,
-				"Unable to get vdd_mm regulator\n");
-		return PTR_ERR(vdd_mm.regulator[0]);
-	}
 
 	ret = disp_cc_sm8150_fixup(pdev, regmap);
 	if (ret)

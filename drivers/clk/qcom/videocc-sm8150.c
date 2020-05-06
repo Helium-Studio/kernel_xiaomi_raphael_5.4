@@ -36,6 +36,10 @@
 
 static DEFINE_VDD_REGULATORS(vdd_mm, VDD_MM_NUM, 1, vdd_corner);
 
+static struct clk_vdd_class *video_cc_sm8150_regulators[] = {
+	&vdd_mm,
+};
+
 enum {
 	P_BI_TCXO,
 	P_CHIP_SLEEP_CLK,
@@ -276,6 +280,8 @@ static const struct qcom_cc_desc video_cc_sm8150_desc = {
 	.num_clks = ARRAY_SIZE(video_cc_sm8150_clocks),
 	.resets = video_cc_sm8150_resets,
 	.num_resets = ARRAY_SIZE(video_cc_sm8150_resets),
+	.clk_regulators = video_cc_sm8150_regulators,
+	.num_clk_regulators = ARRAY_SIZE(video_cc_sm8150_regulators),
 };
 
 static const struct of_device_id video_cc_sm8150_match_table[] = {
@@ -331,13 +337,6 @@ static int video_cc_sm8150_probe(struct platform_device *pdev)
 		return PTR_ERR(clk);
 	}
 	devm_clk_put(&pdev->dev, clk);
-
-	vdd_mm.regulator[0] = devm_regulator_get(&pdev->dev, "vdd_mm");
-	if (IS_ERR(vdd_mm.regulator[0])) {
-		if (!(PTR_ERR(vdd_mm.regulator[0]) == -EPROBE_DEFER))
-			dev_err(&pdev->dev, "Unable to get vdd_mm regulator\n");
-		return PTR_ERR(vdd_mm.regulator[0]);
-	}
 
 	ret = video_cc_sm8150_fixup(pdev, regmap);
 	if (ret)

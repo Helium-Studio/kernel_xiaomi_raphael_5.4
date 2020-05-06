@@ -35,6 +35,10 @@
 
 static DEFINE_VDD_REGULATORS(vdd_scc_cx, VDD_NUM, 1, vdd_corner);
 
+static struct clk_vdd_class *scc_cc_sm8150_regulators[] = {
+	&vdd_scc_cx,
+};
+
 enum {
 	P_SSC_BI_TCXO,
 	P_AON_SLEEP_CLK,
@@ -592,6 +596,8 @@ static const struct qcom_cc_desc scc_sm8150_desc = {
 	.config = &scc_sm8150_regmap_config,
 	.clks = scc_sm8150_clocks,
 	.num_clks = ARRAY_SIZE(scc_sm8150_clocks),
+	.clk_regulators = scc_cc_sm8150_regulators,
+	.num_clk_regulators = ARRAY_SIZE(scc_cc_sm8150_regulators),
 };
 
 static const struct of_device_id scc_sm8150_match_table[] = {
@@ -671,15 +677,6 @@ static int scc_sm8150_probe(struct platform_device *pdev)
 	if (IS_ERR(regmap)) {
 		pr_err("Failed to map the scc registers\n");
 		return PTR_ERR(regmap);
-	}
-
-	vdd_scc_cx.regulator[0] = devm_regulator_get(&pdev->dev, "vdd_scc_cx");
-	if (IS_ERR(vdd_scc_cx.regulator[0])) {
-		ret = PTR_ERR(vdd_scc_cx.regulator[0]);
-		if (ret != -EPROBE_DEFER)
-			dev_err(&pdev->dev, "Unable to get vdd_scc_cx regulator, ret=%d\n",
-				ret);
-		return ret;
 	}
 
 	ret = scc_sm8150_fixup(pdev, regmap);
