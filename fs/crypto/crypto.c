@@ -27,6 +27,7 @@
 #include <linux/ratelimit.h>
 #include <crypto/skcipher.h>
 #include "fscrypt_private.h"
+#include <linux/genhd.h>
 
 static unsigned int num_prealloc_crypto_pages = 32;
 
@@ -90,9 +91,7 @@ void fscrypt_generate_iv(union fscrypt_iv *iv, u64 lblk_num,
 
 	memset(iv, 0, ci->ci_mode->ivsize);
 
-	if (flags & FSCRYPT_POLICY_FLAG_IV_INO_LBLK_64 ||
-		((fscrypt_policy_contents_mode(&ci->ci_policy) ==
-		FSCRYPT_MODE_PRIVATE) && inlinecrypt)) {
+	if (flags & FSCRYPT_POLICY_FLAG_IV_INO_LBLK_64) {
 		WARN_ON_ONCE(lblk_num > U32_MAX);
 		WARN_ON_ONCE(ci->ci_inode->i_ino > U32_MAX);
 		lblk_num |= (u64)ci->ci_inode->i_ino << 32;
@@ -101,6 +100,16 @@ void fscrypt_generate_iv(union fscrypt_iv *iv, u64 lblk_num,
 		lblk_num = (u32)(ci->ci_hashed_ino + lblk_num);
 	} else if (flags & FSCRYPT_POLICY_FLAG_DIRECT_KEY) {
 		memcpy(iv->nonce, ci->ci_nonce, FSCRYPT_FILE_NONCE_SIZE);
+	} else if ((fscrypt_policy_contents_mode(&ci->ci_policy) ==
+						 FSCRYPT_MODE_PRIVATE)
+						 && inlinecrypt) {
+		if (ci->ci_inode->i_sb->s_type->name) {
+			if (!strcmp(ci->ci_inode->i_sb->s_type->name, "f2fs")) {
+				WARN_ON_ONCE(lblk_num > U32_MAX);
+				WARN_ON_ONCE(ci->ci_inode->i_ino > U32_MAX);
+				lblk_num |= (u64)ci->ci_inode->i_ino << 32;
+			}
+		}
 	}
 	iv->lblk_num = cpu_to_le64(lblk_num);
 }
