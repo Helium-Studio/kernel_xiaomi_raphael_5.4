@@ -315,14 +315,12 @@ static int setup_v1_file_key_derived(struct fscrypt_info *ci,
 	if ((fscrypt_policy_contents_mode(&ci->ci_policy) ==
 					  FSCRYPT_MODE_PRIVATE) &&
 					  fscrypt_using_inline_encryption(ci)) {
-		ci->ci_owns_key = true;
 		if (ci->ci_policy.v1.flags &
 		    FSCRYPT_POLICY_FLAG_IV_INO_LBLK_32) {
 			union {
 				siphash_key_t k;
 				u8 bytes[SHA256_DIGEST_SIZE];
 			} ino_hash_key;
-			int err;
 
 			/* hashed_ino = SipHash(key=SHA256(master_key),
 			 * data=i_ino)
@@ -340,11 +338,8 @@ static int setup_v1_file_key_derived(struct fscrypt_info *ci,
 		for (i = 0; i < ARRAY_SIZE(key_new.words); i++)
 			__cpu_to_be32s(&key_new.words[i]);
 
-		err = fscrypt_prepare_inline_crypt_key(&ci->ci_key,
-						       key_new.bytes,
-						       ci->ci_mode->keysize,
-						       false,
-						       ci);
+		err = setup_v1_file_key_direct(ci, key_new.bytes);
+
 		return err;
 	}
 	/*
