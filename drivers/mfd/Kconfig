@@ -2035,5 +2035,10 @@ config MFD_WCD
 	  This driver include only the core APIs. You have to select
 	  individual drivers separately to enable the codec functionality.
 
+config MFD_SPK_ID
+	bool "Versatile Express System Registers"
+	help
+	  Xiaomi speaker ID driver.
+
 endmenu
 endif
