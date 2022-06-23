@@ -464,6 +464,8 @@ struct wcd_mbhc_config {
 	/* Non-FSA4480 analog audio */
 	bool enable_usbc_analog_legacy;
 	struct usbc_ana_audio_config usbc_analog_cfg;
+	void (*enable_dual_adc_gpio)(struct device_node *node, bool en);
+	struct device_node *dual_adc_gpio_node;
 };
 
 struct wcd_mbhc_intr {
