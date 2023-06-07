@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: GPL-2.0-only
+ccflags-y += -I$(srctree)/techpack/video_legacy/msm/vidc/ \
+    -I$(srctree)/drivers/devfreq/
+
+msm-vidc-objs := vidc/msm_v4l2_vidc.o \
+                vidc/msm_v4l2_private.o \
+                vidc/msm_vidc_platform.o \
+                vidc/msm_vidc_common.o \
+                vidc/msm_vidc.o \
+                vidc/msm_vdec.o \
+                vidc/msm_venc.o \
+                vidc/msm_cvp.o \
+                vidc/msm_smem.o \
+                vidc/msm_vidc_debug.o \
+                vidc/msm_vidc_res_parse.o \
+                vidc/venus_hfi.o \
+                vidc/hfi_response_handler.o \
+                vidc/hfi_packetization.o \
+                vidc/vidc_hfi.o \
+                vidc/venus_boot.o \
+                vidc/msm_vidc_clocks.o \
+                vidc/governors/msm_vidc_dyn_gov.o \
+                vidc/governors/msm_vidc_ar50_dyn_gov.o
+
+obj-$(CONFIG_MSM_VIDC_V4L2) := msm-vidc.o
+
