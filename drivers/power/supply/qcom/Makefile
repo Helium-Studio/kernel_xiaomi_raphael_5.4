@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
-obj-$(CONFIG_QPNP_FG_GEN3)	+= qpnp-fg-gen3.o fg-memif.o fg-util.o
+obj-$(CONFIG_QPNP_FG_GEN3) += qpnp-fg-gen3-main.o
+qpnp-fg-gen3-main-y	+= qpnp-fg-gen3.o fg-memif.o fg-util.o pmic-voter.o battery-profile-loader.o
 obj-$(CONFIG_QPNP_SMB5) += qpnp-smb5-main.o
 qpnp-smb5-main-y += step-chg-jeita.o battery.o qpnp-smb5.o smb5-lib.o pmic-voter.o storm-watch.o schgm-flash.o battery-profile-loader.o smb5-iio.o
 obj-$(CONFIG_QPNP_QG)	+= qcom-qpnp-qg.o
