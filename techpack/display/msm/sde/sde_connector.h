@@ -1139,4 +1139,7 @@ int sde_connector_update_hbm(struct sde_connector *c_conn);
 
 void sde_connector_fod_notify(struct drm_connector *connector);
 
+void _sde_connector_report_panel_dead(struct sde_connector *conn,
+				      bool skip_pre_kickoff);
+
 #endif /* _SDE_CONNECTOR_H_ */

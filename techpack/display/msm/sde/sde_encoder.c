@@ -4277,12 +4277,14 @@ static int _sde_encoder_reset_ctl_hw(struct drm_encoder *drm_enc)
 void sde_encoder_kickoff(struct drm_encoder *drm_enc, bool is_error,
 		bool config_changed)
 {
+	struct sde_connector *sde_conn;
 	struct sde_encoder_virt *sde_enc;
 	struct sde_encoder_phys *phys;
 	struct dsi_bridge *bridge = NULL;
 	struct dsi_display *dsi_display = NULL;
 	struct dsi_display_mode adj_mode;
 	unsigned int i;
+	static bool first_kickoff_done;
 
 	if (!drm_enc) {
 		SDE_ERROR("invalid encoder\n");
@@ -4340,6 +4342,13 @@ void sde_encoder_kickoff(struct drm_encoder *drm_enc, bool is_error,
 		struct dsi_bridge *c_bridge = container_of((drm_enc->bridge), struct dsi_bridge, base);
 		if (c_bridge && c_bridge->display && c_bridge->display->panel)
 			c_bridge->display->panel->kickoff_count++;
+	}
+
+	sde_conn = to_sde_connector(sde_enc->cur_master->connector);
+
+	if (unlikely(!first_kickoff_done)) {
+		first_kickoff_done = true;
+		_sde_connector_report_panel_dead(sde_conn, false);
 	}
 
 	SDE_ATRACE_END("encoder_kickoff");

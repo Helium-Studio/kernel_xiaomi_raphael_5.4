@@ -2823,8 +2823,8 @@ static irqreturn_t esd_err_irq_handle(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static void _sde_connector_report_panel_dead(struct sde_connector *conn,
-	bool skip_pre_kickoff)
+void _sde_connector_report_panel_dead(struct sde_connector *conn,
+				      bool skip_pre_kickoff)
 {
 	struct drm_event event;
 	struct dsi_display *display = (struct dsi_display *)(conn->display);
