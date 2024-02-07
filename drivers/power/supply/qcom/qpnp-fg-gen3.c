@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023, 2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt)	"FG: %s: " fmt, __func__
@@ -5276,7 +5276,8 @@ static void fg_cleanup(struct fg_gen3_chip *chip)
 	cancel_delayed_work_sync(&chip->pl_enable_work);
 
 	fg_unregister_interrupts(fg, chip, FG_GEN3_IRQ_MAX);
-	alarm_try_to_cancel(&fg->esr_filter_alarm);
+	if (fg->esr_filter_alarm.function)
+		alarm_try_to_cancel(&fg->esr_filter_alarm);
 	sysfs_remove_groups(&fg->dev->kobj, fg_groups);
 	debugfs_remove_recursive(fg->dfs_root);
 	if (fg->awake_votable)
@@ -5352,8 +5353,8 @@ static int fg_gen3_probe(struct platform_device *pdev)
 	chip->pl_disable_votable = find_votable("PL_DISABLE");
 	if (chip->pl_disable_votable == NULL) {
 		rc = -EPROBE_DEFER;
-		pr_err("%s %d - EPROBE_DEFER for find_votable-PL_DISABLE\n",
-							__func__, __LINE__);
+		pr_err("votable - PL_DISABLE unavailable, rc:%d\n", rc);
+		goto exit;
 	}
 
 	fg->awake_votable = create_votable("FG_WS", VOTE_SET_ANY, fg_awake_cb,
