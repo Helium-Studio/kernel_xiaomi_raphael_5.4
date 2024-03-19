@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -439,9 +439,9 @@ bool is_qnovo_en(struct fg_dev *fg)
 	if (!batt_psy_initialized(fg))
 		return false;
 
-	rc = fg_gen3_read_iio_chan(chip, QNOVO_ENABLE, &val);
+	rc = fg_gen3_read_iio_chan(chip, CHARGE_QNOVO_ENABLE, &val);
 	if (rc < 0) {
-		pr_debug("Failed to get QNOVO_ENABLE value\n");
+		pr_debug("Failed to get CHARGE_QNOVO_ENABLE value\n");
 		return false;
 	} else {
 		return val != 0;
