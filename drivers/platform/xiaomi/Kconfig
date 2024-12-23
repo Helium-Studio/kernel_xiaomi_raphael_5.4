@@ -1,0 +1,22 @@
+menu "Xiaomi board selection"
+
+config MACH_XIAOMI
+	bool "Support for Xiaomi products"
+	depends on ARCH_QCOM
+	help
+	  This adds support for Xiaomi products.
+
+config MACH_XIAOMI_SM8150
+	bool "Support for Xiaomi SM8150 devices"
+	depends on ARCH_SM8150
+	select MACH_XIAOMI
+	help
+	  This adds support for Xiaomi SM8150 devices.
+
+config MACH_XIAOMI_RAPHAEL
+	bool "Support for Redmi K20 Pro (raphael) board"
+	select MACH_XIAOMI_SM8150
+	help
+	  This adds support for Redmi K20 Pro (raphael) board.
+
+endmenu

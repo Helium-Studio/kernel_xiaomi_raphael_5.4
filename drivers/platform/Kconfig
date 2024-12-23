@@ -17,3 +17,5 @@ source "drivers/platform/olpc/Kconfig"
 source "drivers/platform/surface/Kconfig"
 
 source "drivers/platform/msm/Kconfig"
+
+source "drivers/platform/xiaomi/Kconfig"
