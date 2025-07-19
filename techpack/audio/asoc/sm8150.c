@@ -3838,7 +3838,9 @@ static int msm_adsp_power_up_config(struct snd_soc_component *component,
 
 	timeout = jiffies +
 		msecs_to_jiffies(ADSP_STATE_READY_TIMEOUT_MS);
-
+	
+	/* sleep for 100ms before querying AVS up */
+	msleep(100);
 	do {
 		if (!snd_card_online) {
 			snd_card_online = snd_card_is_online_state(card);
