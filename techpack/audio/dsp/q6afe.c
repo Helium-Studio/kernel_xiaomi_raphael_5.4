@@ -12285,7 +12285,8 @@ int send_tfa_cal_in_band(void *buf, int cmd_size)
 
 	if (afe_spk_prot_prepare(port_id, 0,
 			AFE_PARAM_ID_TFADSP_RX_CFG,
-			&afe_spk_config)) {
+			&afe_spk_config,
+			sizeof(union afe_spkr_prot_config))) {
 			pr_err("%s: AFE_PARAM_ID_TFADSP_RX_CFG failed\n",
 				   __func__);
 	}
@@ -12306,7 +12307,8 @@ int send_tfa_cal_set_bypass(void *buf, int cmd_size)
 
 	if (afe_spk_prot_prepare(port_id, 0,
 			AFE_PARAM_ID_TFADSP_RX_SET_BYPASS,
-			&afe_spk_config)) {
+			&afe_spk_config,
+			sizeof(union afe_spkr_prot_config))) {
 		pr_err("%s: AFE_PARAM_ID_TFADSP_RX_SET_BYPASS failed\n",
 				   __func__);
 	}
@@ -12327,7 +12329,8 @@ int send_tfa_cal_set_tx_enable(void *buf, int cmd_size)
 
 	if (afe_spk_prot_prepare(port_id, 0,
 			AFE_PARAM_ID_TFADSP_TX_SET_ENABLE,
-			&afe_spk_config)) {
+			&afe_spk_config,
+			sizeof(union afe_spkr_prot_config))) {
 		pr_err("%s: AFE_PARAM_ID_TFADSP_TX_SET_ENABLE failed\n",
 				   __func__);
 	}

@@ -825,7 +825,7 @@ static void wcd_clsh_state_hph_ear(struct snd_soc_component *component,
 			wcd_clsh_set_gain_path(component, mode);
 			wcd_clsh_set_flyback_mode(component, mode);
 			wcd_clsh_set_buck_mode(component, mode);
-			wcd_clsh_set_hph_mode(codec, mode);
+			wcd_clsh_set_hph_mode(component, mode);
 		}
 	} else {
 		if (req_state == WCD_CLSH_STATE_EAR) {

@@ -4,6 +4,9 @@
  */
 
 #include <sound/soc.h>
+#ifdef CONFIG_SND_SOC_TFA9874_FOR_DAVI
+#include "codecs/tfa98xx/inc/tfa_platform_interface_definition.h"
+#endif
 
 /* FrontEnd DAI Links */
 SND_SOC_DAILINK_DEFS(multimedia1,
@@ -185,10 +188,17 @@ SND_SOC_DAILINK_DEFS(slimbus8_hostless,
 	DAILINK_COMP_ARRAY(COMP_CODEC("snd-soc-dummy", "snd-soc-dummy-dai")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-hostless")));
 
+#ifdef CONFIG_SND_SOC_TFA9874_FOR_DAVI
+SND_SOC_DAILINK_DEFS(tfa_tx_hostless,
+	DAILINK_COMP_ARRAY(COMP_CPU(TFA_TX_HOSTLESS_CPU_DAI_NAME)),
+	DAILINK_COMP_ARRAY(COMP_CODEC("snd-soc-dummy", "snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-hostless")));
+#else
 SND_SOC_DAILINK_DEFS(slimbus_4_tx,
 	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-dev.16393")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("tavil_codec", "tavil_vifeedback")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-hostless")));
+#endif
 
 /* Ultrasound RX DAI Link */
 SND_SOC_DAILINK_DEFS(slimbus_2_hostless,
@@ -357,10 +367,6 @@ SND_SOC_DAILINK_DEFS(lpass_be_slimbus_0_rx,
 SND_SOC_DAILINK_DEFS(lpass_be_slimbus_0_tx,
 	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-dev.16385")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("tavil_codec", "tavil_tx1"),
-			   COMP_CODEC("wsa-codec.1", "wsa_rx1"),
-			   COMP_CODEC("wsa-codec.2", "wsa_rx2"),
-			   COMP_CODEC("wsa-codec.3", "wsa_rx3"),
-			   COMP_CODEC("wsa-codec.4", "wsa_rx4"),
 		COMP_CODEC("msm-stub-codec.1", "msm-stub-tx")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
 
@@ -484,7 +490,11 @@ SND_SOC_DAILINK_DEFS(tert_mi2s_tx,
 
 SND_SOC_DAILINK_DEFS(quat_mi2s_rx,
 	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-mi2s.6")),
+#ifdef CONFIG_SND_SOC_TFA9874_FOR_DAVI
+	DAILINK_COMP_ARRAY(COMP_CODEC("tfa98xx.1-0034", "tfa98xx-aif-1-34")),
+#else
 	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-rx")),
+#endif
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
 
 SND_SOC_DAILINK_DEFS(quat_mi2s_tx,
