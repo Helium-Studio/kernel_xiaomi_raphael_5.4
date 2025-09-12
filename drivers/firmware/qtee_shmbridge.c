@@ -110,6 +110,10 @@ static int32_t qtee_shmbridge_enable(bool enable)
 		return ret;
 	}
 
+#if defined(CONFIG_ARCH_SM8150)
+	return ret;
+#endif
+
 	ret = qcom_scm_enable_shm_bridge();
 
 	if (ret) {
