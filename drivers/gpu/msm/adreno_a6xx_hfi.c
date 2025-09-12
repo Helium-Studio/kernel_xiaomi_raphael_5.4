@@ -279,7 +279,8 @@ static int poll_gmu_reg(struct adreno_device *adreno_dev,
 		 */
 		gmu_core_regread(device, A6XX_GMU_CM3_FW_INIT_RESULT, &val);
 		if (val & 0xE00)
-			return -ETIMEDOUT;
+			if ((val & 0xBABEFACE) != 0xBABEFACE)
+				return -ETIMEDOUT;
 
 		usleep_range(10, 100);
 	}

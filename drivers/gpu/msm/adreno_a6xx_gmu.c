@@ -1914,7 +1914,8 @@ static void a6xx_gmu_send_nmi(struct adreno_device *adreno_dev, bool force)
 	gmu_core_regread(device, A6XX_GMU_CM3_FW_INIT_RESULT, &val);
 
 	if (val & 0xE00)
-		return;
+		if ((val & 0xBABEFACE) != 0xBABEFACE)
+			return;
 
 nmi:
 	/* Mask so there's no interrupt caused by NMI */
