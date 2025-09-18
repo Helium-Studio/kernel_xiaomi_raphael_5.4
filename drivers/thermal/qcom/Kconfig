@@ -119,6 +119,15 @@ config QTI_SDPM_CLOCK_MONITOR
 	    rate into the SDPM CSR register. This driver will receive the clock
 	    list and the CSR details from devicetree.
 
+config QTI_AOP_REG_COOLING_DEVICE
+	bool "QTI AOP Regulator cooling device"
+	depends on THERMAL_OF && MSM_QMP
+	help
+	  This enables the AOP based Regulator cooling device. This cooling
+	  device will be used by QTI chipset to place a floor voltage
+	  restriction at low temperatures. The cooling device will message
+	  the AOP using mail box to establish the floor voltage.
+
 config REGULATOR_COOLING_DEVICE
 	tristate "Regulator voltage floor cooling device"
 	depends on REGULATOR && THERMAL_OF
