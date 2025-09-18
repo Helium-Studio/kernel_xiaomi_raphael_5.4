@@ -18,7 +18,7 @@
 
 struct reg_cooling_device {
 	struct thermal_cooling_device	*cdev;
-	unsigned int			min_state;
+	unsigned int			cur_state;
 	const char			*resource_name;
 	struct mbox_chan		*qmp_chan;
 	struct mbox_client		*client;
@@ -42,7 +42,7 @@ static char *regulator_rail[REG_COOLING_NR] = {
 	"ebi",
 };
 
-static int aop_send_msg(struct reg_cooling_device *reg_dev, int min_state)
+static int aop_send_msg(struct reg_cooling_device *reg_dev, int cur_state)
 {
 	char msg_buf[REG_MSG_MAX_LEN] = {0};
 	int ret = 0;
@@ -56,7 +56,7 @@ static int aop_send_msg(struct reg_cooling_device *reg_dev, int min_state)
 
 	ret = snprintf(msg_buf, REG_MSG_MAX_LEN, REG_MSG_FORMAT,
 			reg_dev->resource_name,
-			(min_state == REG_CDEV_MAX_STATE) ? "off" : "on");
+			(cur_state == REG_CDEV_MAX_STATE) ? "off" : "on");
 	if (ret >= REG_MSG_MAX_LEN) {
 		pr_err("Message too long for resource:%s\n",
 				reg_dev->resource_name);
@@ -76,16 +76,16 @@ static int reg_get_max_state(struct thermal_cooling_device *cdev,
 	return 0;
 }
 
-static int reg_get_min_state(struct thermal_cooling_device *cdev,
+static int reg_get_cur_state(struct thermal_cooling_device *cdev,
 				unsigned long *state)
 {
 	struct reg_cooling_device *reg_dev = cdev->devdata;
 
-	*state = reg_dev->min_state;
+	*state = reg_dev->cur_state;
 	return 0;
 }
 
-static int reg_send_min_state(struct thermal_cooling_device *cdev,
+static int reg_send_cur_state(struct thermal_cooling_device *cdev,
 				unsigned long state)
 {
 	struct reg_cooling_device *reg_dev = cdev->devdata;
@@ -94,7 +94,7 @@ static int reg_send_min_state(struct thermal_cooling_device *cdev,
 	if (state > REG_CDEV_MAX_STATE)
 		state = REG_CDEV_MAX_STATE;
 
-	if (reg_dev->min_state == state)
+	if (reg_dev->cur_state == state)
 		return ret;
 
 	ret = aop_send_msg(reg_dev, state);
@@ -103,32 +103,17 @@ static int reg_send_min_state(struct thermal_cooling_device *cdev,
 			reg_dev->resource_name, state, ret);
 	} else {
 		pr_debug("regulator:%s switched to %lu from %d\n",
-			reg_dev->resource_name, state, reg_dev->min_state);
-		reg_dev->min_state = state;
+			reg_dev->resource_name, state, reg_dev->cur_state);
+		reg_dev->cur_state = state;
 	}
 
 	return ret;
-}
-
-static int reg_get_cur_state(struct thermal_cooling_device *cdev,
-				unsigned long *state)
-{
-	*state = 0;
-	return 0;
-}
-
-static int reg_send_cur_state(struct thermal_cooling_device *cdev,
-				unsigned long state)
-{
-	return 0;
 }
 
 static struct thermal_cooling_device_ops reg_dev_ops = {
 	.get_max_state = reg_get_max_state,
 	.get_cur_state = reg_get_cur_state,
 	.set_cur_state = reg_send_cur_state,
-	.set_min_state = reg_send_min_state,
-	.get_min_state = reg_get_min_state,
 };
 
 static int reg_init_mbox(struct platform_device *pdev,
@@ -186,7 +171,7 @@ static int reg_dev_probe(struct platform_device *pdev)
 		ret = -EINVAL;
 		goto mbox_free;
 	}
-	reg_dev->min_state = REG_CDEV_MAX_STATE;
+	reg_dev->cur_state = REG_CDEV_MAX_STATE;
 	reg_dev->cdev = thermal_of_cooling_device_register(
 				pdev->dev.of_node,
 				(char *)reg_dev->resource_name,
