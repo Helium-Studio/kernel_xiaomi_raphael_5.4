@@ -933,7 +933,7 @@ static void icnss_vph_notify(enum adc_tm_state state, void *ctx)
 			     priv->vph_monitor_params.high_thr, vph_pwr);
 	}
 
-	ret = adc_tm5_channel_measure(priv->adc_tm_dev,
+	ret = adc_tm_channel_measure(priv->adc_tm_dev,
 				      &priv->vph_monitor_params);
 	if (ret)
 		icnss_pr_err("TM channel setup failed %d\n", ret);
@@ -952,14 +952,14 @@ static int icnss_setup_vph_monitor(struct icnss_priv *priv)
 	priv->vph_monitor_params.low_thr = ICNSS_THRESHOLD_LOW;
 	priv->vph_monitor_params.high_thr = ICNSS_THRESHOLD_HIGH;
 	priv->vph_monitor_params.state_request = ADC_TM_HIGH_LOW_THR_ENABLE;
-	priv->vph_monitor_params.channel = ADC_VBAT_SNS;
+	priv->vph_monitor_params.channel = ADC5_VBAT_SNS;
 	priv->vph_monitor_params.btm_ctx = priv;
 	priv->vph_monitor_params.threshold_notification = &icnss_vph_notify;
 	icnss_pr_dbg("Set low threshold to %d, high threshold to %d\n",
 		     priv->vph_monitor_params.low_thr,
 		     priv->vph_monitor_params.high_thr);
 
-	ret = adc_tm5_channel_measure(priv->adc_tm_dev,
+	ret = adc_tm_channel_measure(priv->adc_tm_dev,
 				      &priv->vph_monitor_params);
 	if (ret)
 		icnss_pr_err("TM channel setup failed %d\n", ret);
@@ -1165,7 +1165,7 @@ static int icnss_driver_event_server_exit(void *data)
 	icnss_clear_server(penv);
 
 	if (penv->adc_tm_dev && penv->vbatt_supported)
-		adc_tm5_disable_chan_meas(penv->adc_tm_dev,
+		adc_tm_disable_chan_meas(penv->adc_tm_dev,
 					  &penv->vph_monitor_params);
 
 	if (penv->psf_supported)
@@ -4118,4 +4118,4 @@ module_init(icnss_initialize);
 module_exit(icnss_exit);
 
 MODULE_LICENSE("GPL v2");
-MODULE_DESCRIPTION(DEVICE "iCNSS CORE platform driver");
+MODULE_DESCRIPTION("iCNSS CORE platform driver");

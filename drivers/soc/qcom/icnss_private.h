@@ -8,7 +8,6 @@
 
 #include <linux/adc-tm-clients.h>
 #include <linux/iio/consumer.h>
-#include <asm/dma-iommu.h>
 #include <linux/kobject.h>
 #include <linux/power_supply.h>
 
