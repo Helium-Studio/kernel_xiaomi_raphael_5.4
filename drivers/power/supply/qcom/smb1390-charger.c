@@ -972,8 +972,8 @@ out_notifier:
 out_votables:
 	smb1390_destroy_votables(chip);
 out_work:
-	cancel_work(&chip->taper_work);
-	cancel_work(&chip->status_change_work);
+	cancel_work_sync(&chip->taper_work);
+	cancel_work_sync(&chip->status_change_work);
 	wakeup_source_unregister(chip->cp_ws);
 	return rc;
 }
@@ -988,8 +988,8 @@ static int smb1390_remove(struct platform_device *pdev)
 	/* explicitly disable charging */
 	vote(chip->disable_votable, USER_VOTER, true, 0);
 	vote(chip->disable_votable, SOC_LEVEL_VOTER, true, 0);
-	cancel_work(&chip->taper_work);
-	cancel_work(&chip->status_change_work);
+	cancel_work_sync(&chip->taper_work);
+	cancel_work_sync(&chip->status_change_work);
 	wakeup_source_unregister(chip->cp_ws);
 	smb1390_destroy_votables(chip);
 	smb1390_release_channels(chip);
