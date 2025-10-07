@@ -8984,6 +8984,9 @@ static int ipa_smmu_uc_cb_probe(struct device *dev)
 
 	ipa3_ctx->s1_bypass_arr[IPA_SMMU_CB_UC] = (bypass != 0);
 
+	if (ipa3_ctx->ipa_hw_type == IPA_HW_v4_1) {
+	cb->next_addr = cb->va_end;
+	}
 	ipa3_ctx->uc_pdev = dev;
 	cb->done = true;
 	return 0;
