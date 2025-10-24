@@ -245,32 +245,6 @@ static struct cdev wlan_hdd_state_cdev;
 static struct class *class;
 static dev_t device;
 static bool hdd_loaded = false;
-#ifndef MODULE
-static struct gwlan_loader *wlan_loader;
-static ssize_t wlan_boot_cb(struct kobject *kobj,
-			    struct kobj_attribute *attr,
-			    const char *buf, size_t count);
-struct gwlan_loader {
-	bool loaded_state;
-	struct kobject *boot_wlan_obj;
-	struct attribute_group *attr_group;
-};
-
-static struct kobj_attribute wlan_boot_attribute =
-	__ATTR(boot_wlan, 0220, NULL, wlan_boot_cb);
-
-static struct attribute *attrs[] = {
-	&wlan_boot_attribute.attr,
-	NULL,
-};
-#define MODULE_INITIALIZED 1
-
-#ifdef MULTI_IF_NAME
-#define WLAN_LOADER_NAME "boot_" MULTI_IF_NAME
-#else
-#define WLAN_LOADER_NAME "boot_wlan"
-#endif
-#endif
 
 /* the Android framework expects this param even though we don't use it */
 #define BUF_LEN 20
@@ -280,10 +254,7 @@ static struct kparam_string fwpath = {
 	.maxlen = BUF_LEN,
 };
 
-char *country_code;
-#ifdef FEATURE_WLAN_RESIDENT_DRIVER
-EXPORT_SYMBOL(country_code);
-#endif
+static char *country_code;
 static int enable_11d = -1;
 static int enable_dfs_chan_scan = -1;
 static bool is_mode_change_psoc_idle_shutdown;
@@ -1092,15 +1063,8 @@ struct notifier_block hdd_netdev_notifier = {
 };
 
 /* variable to hold the insmod parameters */
-int con_mode;
-#ifdef FEATURE_WLAN_RESIDENT_DRIVER
-EXPORT_SYMBOL(con_mode);
-#endif
-
-int con_mode_ftm;
-#ifdef FEATURE_WLAN_RESIDENT_DRIVER
-EXPORT_SYMBOL(con_mode_ftm);
-#endif
+static int con_mode;
+static int con_mode_ftm;
 int con_mode_epping;
 
 static int pcie_gen_speed;
@@ -16896,7 +16860,14 @@ static void hdd_inform_wifi_on(void)
 }
 #endif
 
-int hdd_driver_load(void);
+/**
+ * hdd_driver_load() - Perform the driver-level load operation
+ *
+ * Note: this is used in both static and DLKM driver builds
+ *
+ * Return: Errno
+ */
+static int hdd_driver_load(void);
 static ssize_t wlan_hdd_state_ctrl_param_write(struct file *filp,
 						const char __user *user_buf,
 						size_t count,
@@ -16993,7 +16964,7 @@ const struct file_operations wlan_hdd_state_fops = {
 	.release = wlan_hdd_state_ctrl_param_release,
 };
 
-static int  wlan_hdd_state_ctrl_param_create(void)
+static int wlan_hdd_state_ctrl_param_create(void)
 {
 	unsigned int wlan_hdd_state_major = 0;
 	int ret;
@@ -17854,11 +17825,14 @@ exit:
 	return errno;
 }
 
-#ifdef FEATURE_WLAN_RESIDENT_DRIVER
-EXPORT_SYMBOL(hdd_driver_load);
-#endif
-
-void hdd_driver_unload(void)
+/**
+ * hdd_driver_unload() - Performs the driver-level unload operation
+ *
+ * Note: this is used in both static and DLKM driver builds
+ *
+ * Return: None
+ */
+static void hdd_driver_unload(void)
 {
 	struct osif_driver_sync *driver_sync;
 	struct hdd_context *hdd_ctx;
@@ -17939,137 +17913,6 @@ void hdd_driver_unload(void)
 	hdd_qdf_deinit();
 }
 
-#ifdef FEATURE_WLAN_RESIDENT_DRIVER
-EXPORT_SYMBOL(hdd_driver_unload);
-#endif
-
-#ifndef MODULE
-/**
- * wlan_boot_cb() - Wlan boot callback
- * @kobj:      object whose directory we're creating the link in.
- * @attr:      attribute the user is interacting with
- * @buff:      the buffer containing the user data
- * @count:     number of bytes in the buffer
- *
- * This callback is invoked when the fs is ready to start the
- * wlan driver initialization.
- *
- * Return: 'count' on success or a negative error code in case of failure
- */
-static ssize_t wlan_boot_cb(struct kobject *kobj,
-			    struct kobj_attribute *attr,
-			    const char *buf,
-			    size_t count)
-{
-
-	if (wlan_loader->loaded_state) {
-		hdd_err("wlan driver already initialized");
-		return -EALREADY;
-	}
-
-	if (hdd_driver_load())
-		return -EIO;
-
-	wlan_loader->loaded_state = MODULE_INITIALIZED;
-
-	return count;
-}
-
-/**
- * hdd_sysfs_cleanup() - cleanup sysfs
- *
- * Return: None
- *
- */
-static void hdd_sysfs_cleanup(void)
-{
-	/* remove from group */
-	if (wlan_loader->boot_wlan_obj && wlan_loader->attr_group)
-		sysfs_remove_group(wlan_loader->boot_wlan_obj,
-				   wlan_loader->attr_group);
-
-	/* unlink the object from parent */
-	kobject_del(wlan_loader->boot_wlan_obj);
-
-	/* free the object */
-	kobject_put(wlan_loader->boot_wlan_obj);
-
-	kfree(wlan_loader->attr_group);
-	kfree(wlan_loader);
-
-	wlan_loader = NULL;
-}
-
-/**
- * wlan_init_sysfs() - Creates the sysfs to be invoked when the fs is
- * ready
- *
- * This is creates the syfs entry boot_wlan. Which shall be invoked
- * when the filesystem is ready.
- *
- * QDF API cannot be used here since this function is called even before
- * initializing WLAN driver.
- *
- * Return: 0 for success, errno on failure
- */
-static int wlan_init_sysfs(void)
-{
-	int ret = -ENOMEM;
-
-	wlan_loader = kzalloc(sizeof(*wlan_loader), GFP_KERNEL);
-	if (!wlan_loader)
-		return -ENOMEM;
-
-	wlan_loader->boot_wlan_obj = NULL;
-	wlan_loader->attr_group = kzalloc(sizeof(*(wlan_loader->attr_group)),
-					  GFP_KERNEL);
-	if (!wlan_loader->attr_group)
-		goto error_return;
-
-	wlan_loader->loaded_state = 0;
-	wlan_loader->attr_group->attrs = attrs;
-
-	wlan_loader->boot_wlan_obj = kobject_create_and_add(WLAN_LOADER_NAME,
-							    kernel_kobj);
-	if (!wlan_loader->boot_wlan_obj) {
-		hdd_err("sysfs create and add failed");
-		goto error_return;
-	}
-
-	ret = sysfs_create_group(wlan_loader->boot_wlan_obj,
-				 wlan_loader->attr_group);
-	if (ret) {
-		hdd_err("sysfs create group failed; errno:%d", ret);
-		goto error_return;
-	}
-
-	return 0;
-
-error_return:
-	hdd_sysfs_cleanup();
-
-	return ret;
-}
-
-/**
- * wlan_deinit_sysfs() - Removes the sysfs created to initialize the wlan
- *
- * Return: 0 on success or errno on failure
- */
-static int wlan_deinit_sysfs(void)
-{
-	if (!wlan_loader) {
-		hdd_err("wlan_loader is null");
-		return -EINVAL;
-	}
-
-	hdd_sysfs_cleanup();
-	return 0;
-}
-
-#endif /* MODULE */
-
-#ifdef MODULE
 /**
  * hdd_module_init() - Module init helper
  *
@@ -18077,12 +17920,6 @@ static int wlan_deinit_sysfs(void)
  *
  * Return: 0 for success, errno on failure
  */
-#ifdef FEATURE_WLAN_RESIDENT_DRIVER
-static int hdd_module_init(void)
-{
-	return 0;
-}
-#else
 static int hdd_module_init(void)
 {
 	int ret;
@@ -18093,22 +17930,8 @@ static int hdd_module_init(void)
 
 	return ret;
 }
-#endif
-#else
-static int __init hdd_module_init(void)
-{
-	int ret = -EINVAL;
-
-	ret = wlan_init_sysfs();
-	if (ret)
-		hdd_err("Failed to create sysfs entry");
-
-	return ret;
-}
-#endif
 
 
-#ifdef MODULE
 /**
  * hdd_module_exit() - Exit function
  *
@@ -18116,23 +17939,10 @@ static int __init hdd_module_init(void)
  *
  * Return: None
  */
-#ifdef FEATURE_WLAN_RESIDENT_DRIVER
-static void __exit hdd_module_exit(void)
-{
-}
-#else
 static void __exit hdd_module_exit(void)
 {
 	hdd_driver_unload();
 }
-#endif
-#else
-static void __exit hdd_module_exit(void)
-{
-	hdd_driver_unload();
-	wlan_deinit_sysfs();
-}
-#endif
 
 static int fwpath_changed_handler(const char *kmessage,
 				  const struct kernel_param *kp)
@@ -19521,23 +19331,15 @@ MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Qualcomm Atheros, Inc.");
 MODULE_DESCRIPTION("WLAN HOST DEVICE DRIVER");
 
-const struct kernel_param_ops con_mode_ops = {
+static const struct kernel_param_ops con_mode_ops = {
 	.set = con_mode_handler,
 	.get = param_get_int,
 };
 
-#ifdef FEATURE_WLAN_RESIDENT_DRIVER
-EXPORT_SYMBOL(con_mode_ops);
-#endif
-
-const struct kernel_param_ops con_mode_ftm_ops = {
+static const struct kernel_param_ops con_mode_ftm_ops = {
 	.set = con_mode_handler_ftm,
 	.get = param_get_int,
 };
-
-#ifdef FEATURE_WLAN_RESIDENT_DRIVER
-EXPORT_SYMBOL(con_mode_ftm_ops);
-#endif
 
 #ifdef WLAN_FEATURE_EPPING
 static const struct kernel_param_ops con_mode_epping_ops = {
