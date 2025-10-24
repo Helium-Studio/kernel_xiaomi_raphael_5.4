@@ -1559,6 +1559,12 @@ static int wcd_spi_probe(struct spi_device *spi)
 	INIT_DELAYED_WORK(&wcd_spi->clk_dwork, wcd_spi_clk_work);
 	init_completion(&wcd_spi->resume_comp);
 	arch_setup_dma_ops(&spi->dev, 0, 0, NULL, true);
+	ret = dma_coerce_mask_and_coherent(&spi->dev, DMA_BIT_MASK(64));
+	if (ret) {
+		dev_err(&spi->dev, "%s: Failed to set the DMA mask, err = %d\n",
+			__func__, ret);
+		goto err_ret;
+	}
 
 	wcd_spi->spi = spi;
 	spi_set_drvdata(spi, wcd_spi);
