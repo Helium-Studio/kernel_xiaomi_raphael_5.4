@@ -1,5 +1,18 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
+ifeq ($(CONFIG_ARCH_SM8150), y)
+LINUXINCLUDE    += -include $(srctree)/techpack/dataipa/config/dataipa_gsi_V1.h
+ifeq ($(CONFIG_QGKI),y)
+include $(srctree)/techpack/dataipa/config/dataipa_gsi_V1_QGKI.conf
+ifeq ($(CONFIG_LOCALVERSION), "-qgki-debug")
+include $(srctree)/techpack/dataipa/config/dataipa_debug.conf
+LINUXINCLUDE    += -include $(srctree)/techpack/dataipa/config/dataipa_debug.h
+endif
+else
+include $(srctree)/techpack/dataipa/config/dataipa_gsi_V1_GKI.conf
+endif
+endif
+
 ifeq ($(CONFIG_ARCH_LAHAINA), y)
 LINUXINCLUDE    += -include $(srctree)/techpack/dataipa/config/dataipa.h
 ifeq ($(CONFIG_QGKI),y)
