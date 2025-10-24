@@ -7,6 +7,8 @@
 #include <linux/wait.h>
 #include <linux/stringify.h>
 #include <linux/power_supply.h>
+#include <linux/extcon.h>
+#include <linux/extcon-provider.h>
 #include "wcdcal-hwdep.h"
 #include <sound/jack.h>
 
@@ -619,6 +621,8 @@ struct wcd_mbhc {
 	bool force_linein;
 	struct device_node *fsa_np;
 	struct notifier_block fsa_nb;
+
+	struct extcon_dev *extdev;
 };
 
 void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,
