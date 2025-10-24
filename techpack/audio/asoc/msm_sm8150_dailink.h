@@ -327,6 +327,10 @@ SND_SOC_DAILINK_DEFS(lpass_be_slimbus_0_rx,
 SND_SOC_DAILINK_DEFS(lpass_be_slimbus_0_tx,
 	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-dev.16385")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("tavil_codec", "tavil_tx1"),
+			   COMP_CODEC("wsa-codec.1", "wsa_rx1"),
+			   COMP_CODEC("wsa-codec.2", "wsa_rx2"),
+			   COMP_CODEC("wsa-codec.3", "wsa_rx3"),
+			   COMP_CODEC("wsa-codec.4", "wsa_rx4"),
 		COMP_CODEC("msm-stub-codec.1", "msm-stub-tx")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
 

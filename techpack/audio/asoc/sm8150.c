@@ -38,8 +38,6 @@
 #define __CHIPSET__ "SM8150 "
 #define MSM_DAILINK_NAME(name) (__CHIPSET__#name)
 
-#define DEV_NAME_STR_LEN            32
-
 #define SAMPLING_RATE_8KHZ      8000
 #define SAMPLING_RATE_11P025KHZ 11025
 #define SAMPLING_RATE_16KHZ     16000
@@ -60,7 +58,6 @@
 #define WSA8810_NAME_2 "wsa881x.20170212"
 #define WCN_CDC_SLIM_RX_CH_MAX 2
 #define WCN_CDC_SLIM_TX_CH_MAX 3
-#define TDM_CHANNEL_MAX 8
 
 #define ADSP_STATE_READY_TIMEOUT_MS 3000
 #define MSM_LL_QOS_VALUE 300 /* time in us to ensure LPM doesn't go in C3/C4 */
@@ -133,11 +130,6 @@ enum {
 	EXT_DISP_RX_IDX_MAX,
 };
 
-struct msm_wsa881x_dev_info {
-	struct device_node *of_node;
-	u32 index;
-};
-
 enum pinctrl_pin_state {
 	STATE_DISABLE = 0, /* All pins are in sleep state */
 	STATE_MI2S_ACTIVE,  /* IS2 = active, TDM = sleep */
@@ -162,6 +154,7 @@ struct msm_asoc_mach_data {
 	struct device_node *fsa_handle;
 	struct snd_soc_component *component;
 	struct work_struct adsp_power_up_work;
+	u32 wsa_max_devs;
 };
 
 struct msm_asoc_wcd93xx_codec {
@@ -515,15 +508,14 @@ static struct platform_device *spdev;
 
 static int msm_hifi_control;
 static bool is_initial_boot;
+static bool is_wsa8810;
 static bool codec_reg_done;
-static struct snd_soc_aux_dev *msm_aux_dev;
-static struct snd_soc_codec_conf *msm_codec_conf;
 static struct msm_asoc_wcd93xx_codec msm_codec_fn;
 
 static void *def_wcd_mbhc_cal(void);
 static int msm_snd_enable_codec_ext_clk(struct snd_soc_component *component,
 					int enable, bool dapm);
-static int msm_wsa881x_init(struct snd_soc_component *component);
+static int msm_wsa881x_init(struct snd_soc_pcm_runtime *rtd);
 
 /*
  * Need to report LINEIN
@@ -3967,7 +3959,7 @@ static int sm8150_notifier_service_cb(struct notifier_block *this,
 	const char *be_dl_name = LPASS_BE_SLIMBUS_0_RX;
 	struct snd_soc_pcm_runtime *rtd;
 	struct snd_soc_dai *codec_dai;
-	struct snd_soc_component *component;
+	struct snd_soc_component *component = NULL;
 	struct msm_asoc_mach_data *pdata;
 
 	pr_debug("%s: Service opcode 0x%lx\n", __func__, opcode);
@@ -4040,13 +4032,12 @@ static struct snd_info_entry *msm_snd_info_create_subdir(struct module *mod,
 
 static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 {
-	int ret = 0;
+	int ret = -EINVAL;
 	void *config_data;
 	struct snd_soc_component *component;
 	struct snd_soc_dapm_context *dapm;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-	struct snd_soc_component *aux_comp;
 	struct snd_card *card = rtd->card->snd_card;
 	struct snd_info_entry *entry;
 	struct msm_asoc_mach_data *pdata =
@@ -4149,37 +4140,30 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	 * Send speaker configuration only for WSA8810.
 	 * Default configuration is for WSA8815.
 	 */
-	pr_debug("%s: Number of aux devices: %d\n",
-		__func__, rtd->card->num_aux_devs);
 	if (!strcmp(dev_name(codec_dai->dev), "tavil_codec")) {
-		if (rtd->card->num_aux_devs &&
-		    !list_empty(&rtd->card->component_dev_list)) {
-			aux_comp = list_first_entry(
-					&rtd->card->component_dev_list,
-					struct snd_soc_component,
-					card_aux_list);
-			if (!strcmp(aux_comp->name, WSA8810_NAME_1) ||
-			    !strcmp(aux_comp->name, WSA8810_NAME_2)) {
-				tavil_set_spkr_mode(component,
-						    WCD934X_SPKR_MODE_1);
-				tavil_set_spkr_gain_offset(component,
-						WCD934X_RX_GAIN_OFFSET_M1P5_DB);
-			}
+		if (is_wsa8810) {
+			tavil_set_spkr_mode(component, WCD934X_SPKR_MODE_1);
+			tavil_set_spkr_gain_offset(component,
+					WCD934X_RX_GAIN_OFFSET_M1P5_DB);
 		}
+
 		card = rtd->card->snd_card;
-		entry = msm_snd_info_create_subdir(card->module, "codecs",
-						 card->proc_root);
-		if (!entry) {
-			pr_debug("%s: Cannot create codecs module entry\n",
-				 __func__);
-			pdata->codec_root = NULL;
-			goto done;
+
+		if (!pdata->codec_root) {
+			entry = msm_snd_info_create_subdir(card->module, "codecs",
+							 card->proc_root);
+			if (!entry) {
+				pr_debug("%s: Cannot create codecs module entry\n",
+					 __func__);
+				ret = 0;
+				goto err;
+			}
+			pdata->codec_root = entry;
 		}
-		pdata->codec_root = entry;
 		tavil_codec_info_create_codec_entry(pdata->codec_root,
 				component);
 	}
-done:
+
 	codec_reg_done = true;
 	return 0;
 
@@ -5820,6 +5804,7 @@ static struct snd_soc_dai_link msm_tavil_be_dai_links[] = {
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_0_TX,
+		.init = msm_wsa881x_init,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ignore_suspend = 1,
 		.ops = &msm_be_ops,
@@ -6315,10 +6300,12 @@ struct snd_soc_card snd_soc_card_tavil_msm = {
 static int msm_populate_dai_link_component_of_node(
 					struct snd_soc_card *card)
 {
-	int i, index, ret = 0;
+	int i, j, index, ret = 0;
 	struct device *cdev = card->dev;
 	struct snd_soc_dai_link *dai_link = card->dai_link;
-	struct device_node *np;
+	struct device_node *np = NULL;
+	struct snd_soc_dai_link_component *codecs_comp = NULL;
+	int codecs_enabled = 0;
 
 	if (!cdev) {
 		pr_err("%s: Sound card device memory NULL\n", __func__);
@@ -6326,18 +6313,18 @@ static int msm_populate_dai_link_component_of_node(
 	}
 
 	for (i = 0; i < card->num_links; i++) {
-		if (dai_link[i].platform_of_node && dai_link[i].cpu_of_node)
+		if (dai_link[i].platforms->of_node && dai_link[i].cpus->of_node)
 			continue;
 
 		/* populate platform_of_node for snd card dai links */
-		if (dai_link[i].platform_name &&
-		    !dai_link[i].platform_of_node) {
+		if (dai_link[i].platforms->name &&
+		    !dai_link[i].platforms->of_node) {
 			index = of_property_match_string(cdev->of_node,
 						"asoc-platform-names",
-						dai_link[i].platform_name);
+						dai_link[i].platforms->name);
 			if (index < 0) {
 				pr_err("%s: No match found for platform name: %s\n",
-					__func__, dai_link[i].platform_name);
+					__func__, dai_link[i].platforms->name);
 				ret = index;
 				goto err;
 			}
@@ -6345,52 +6332,107 @@ static int msm_populate_dai_link_component_of_node(
 					      index);
 			if (!np) {
 				pr_err("%s: retrieving phandle for platform %s, index %d failed\n",
-					__func__, dai_link[i].platform_name,
+					__func__, dai_link[i].platforms->name,
 					index);
 				ret = -ENODEV;
 				goto err;
 			}
-			dai_link[i].platform_of_node = np;
-			dai_link[i].platform_name = NULL;
+			dai_link[i].platforms->of_node = np;
+			dai_link[i].platforms->name = NULL;
 		}
 
 		/* populate cpu_of_node for snd card dai links */
-		if (dai_link[i].cpu_dai_name && !dai_link[i].cpu_of_node) {
+		if (dai_link[i].cpus->dai_name && !dai_link[i].cpus->of_node) {
 			index = of_property_match_string(cdev->of_node,
 						 "asoc-cpu-names",
-						 dai_link[i].cpu_dai_name);
+						 dai_link[i].cpus->dai_name);
 			if (index >= 0) {
 				np = of_parse_phandle(cdev->of_node, "asoc-cpu",
 						index);
 				if (!np) {
 					pr_err("%s: retrieving phandle for cpu dai %s failed\n",
 						__func__,
-						dai_link[i].cpu_dai_name);
+						dai_link[i].cpus->dai_name);
 					ret = -ENODEV;
 					goto err;
 				}
-				dai_link[i].cpu_of_node = np;
-				dai_link[i].cpu_dai_name = NULL;
+				dai_link[i].cpus->of_node = np;
+				dai_link[i].cpus->dai_name = NULL;
 			}
 		}
 
 		/* populate codec_of_node for snd card dai links */
-		if (dai_link[i].codec_name && !dai_link[i].codec_of_node) {
-			index = of_property_match_string(cdev->of_node,
-						 "asoc-codec-names",
-						 dai_link[i].codec_name);
-			if (index < 0)
-				continue;
-			np = of_parse_phandle(cdev->of_node, "asoc-codec",
-					      index);
-			if (!np) {
-				pr_err("%s: retrieving phandle for codec %s failed\n",
-					__func__, dai_link[i].codec_name);
-				ret = -ENODEV;
-				goto err;
+		if (dai_link[i].num_codecs > 0) {
+			for (j = 0; j < dai_link[i].num_codecs; j++) {
+				if (dai_link[i].codecs[j].of_node ||
+						!dai_link[i].codecs[j].name)
+					continue;
+
+				index = of_property_match_string(cdev->of_node,
+						"asoc-codec-names",
+						dai_link[i].codecs[j].name);
+				if (index < 0)
+					continue;
+				np = of_parse_phandle(cdev->of_node,
+						      "asoc-codec",
+						      index);
+				if (!np) {
+					dev_err(cdev, "%s: retrieving phandle for codec %s failed\n",
+						__func__,
+						dai_link[i].codecs[j].name);
+					ret = -ENODEV;
+					goto err;
+				}
+				dai_link[i].codecs[j].of_node = np;
+				dai_link[i].codecs[j].name = NULL;
 			}
-			dai_link[i].codec_of_node = np;
-			dai_link[i].codec_name = NULL;
+		}
+	}
+
+	/* In multi-codec scenario, check if codecs are enabled for this platform */
+	for (i = 0; i < card->num_links; i++) {
+		codecs_enabled = 0;
+		if (dai_link[i].num_codecs > 1) {
+			for (j = 0; j < dai_link[i].num_codecs; j++) {
+				if (!dai_link[i].codecs[j].of_node)
+					continue;
+
+				np = dai_link[i].codecs[j].of_node;
+				if (!of_device_is_available(np)) {
+					dev_dbg(cdev, "%s: codec is disabled: %s\n",
+						__func__,
+						np->full_name);
+					dai_link[i].codecs[j].of_node = NULL;
+					continue;
+				}
+
+				codecs_enabled++;
+			}
+			if (codecs_enabled > 0 &&
+				    codecs_enabled < dai_link[i].num_codecs) {
+				codecs_comp = devm_kzalloc(cdev,
+				    sizeof(struct snd_soc_dai_link_component)
+				    * codecs_enabled, GFP_KERNEL);
+				if (!codecs_comp) {
+					dev_err(cdev, "%s: %s dailink codec component alloc failed\n",
+						__func__, dai_link[i].name);
+					ret = -ENOMEM;
+					goto err;
+				}
+				index = 0;
+				for (j = 0; j < dai_link[i].num_codecs; j++) {
+					if(dai_link[i].codecs[j].of_node) {
+						codecs_comp[index].of_node =
+						  dai_link[i].codecs[j].of_node;
+						codecs_comp[index].dai_name =
+						  dai_link[i].codecs[j].dai_name;
+						codecs_comp[index].name = NULL;
+						index++;
+					}
+				}
+				dai_link[i].codecs = codecs_comp;
+				dai_link[i].num_codecs = codecs_enabled;
+			}
 		}
 	}
 
@@ -6626,36 +6668,60 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 	return card;
 }
 
-static int msm_wsa881x_init(struct snd_soc_component *component)
+static int msm_wsa881x_init(struct snd_soc_pcm_runtime *rtd)
 {
 	u8 spkleft_ports[WSA881X_MAX_SWR_PORTS] = {100, 101, 102, 106};
 	u8 spkright_ports[WSA881X_MAX_SWR_PORTS] = {103, 104, 105, 107};
 	unsigned int ch_rate[WSA881X_MAX_SWR_PORTS] = {2400, 600, 300, 1200};
 	unsigned int ch_mask[WSA881X_MAX_SWR_PORTS] = {0x1, 0xF, 0x3, 0x3};
-	struct msm_asoc_mach_data *pdata;
-	struct snd_soc_dapm_context *dapm;
-	int ret = 0;
+	struct snd_soc_component *component = NULL;
+	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(rtd->card);
+	struct snd_soc_dapm_context *dapm = NULL;
+	int wsa_active_devs = 0;
 
-	if (!component) {
-		pr_err("%s codec is NULL\n", __func__);
-		return -EINVAL;
+	if (pdata->wsa_max_devs > 0) {
+		component = snd_soc_rtdcom_lookup(rtd, "wsa-codec.1");
+		if (!component)
+			component = snd_soc_rtdcom_lookup(rtd, "wsa-codec.3");
+
+		if (component) {
+			dapm = snd_soc_component_get_dapm(component);
+
+			wsa881x_set_channel_map(component, &spkleft_ports[0],
+					WSA881X_MAX_SWR_PORTS, &ch_mask[0],
+					&ch_rate[0], NULL);
+			if (dapm->component) {
+				snd_soc_dapm_ignore_suspend(dapm, "SpkrLeft IN");
+				snd_soc_dapm_ignore_suspend(dapm, "SpkrLeft SPKR");
+			}
+
+			wsa881x_codec_info_create_codec_entry(pdata->codec_root,
+								component);
+
+			if (!strcmp(component->name, WSA8810_NAME_1) ||
+				!strcmp(component->name, WSA8810_NAME_2))
+				is_wsa8810 = true;
+
+			wsa_active_devs++;
+		} else {
+			pr_err("%s: wsa-codec.1 and wsa-codec.3 component are NULL\n", __func__);
+		}
 	}
 
-	dapm = snd_soc_component_get_dapm(component);
+	/* If current platform has more than one WSA */
+	if (pdata->wsa_max_devs > wsa_active_devs) {
+		component = snd_soc_rtdcom_lookup(rtd, "wsa-codec.2");
+		if (!component)
+			component = snd_soc_rtdcom_lookup(rtd, "wsa-codec.4");
 
-	if (!strcmp(component->name_prefix, "SpkrLeft")) {
-		dev_dbg(component->dev, "%s: setting left ch map to codec %s\n",
-			__func__, component->name);
-		wsa881x_set_channel_map(component, &spkleft_ports[0],
-				WSA881X_MAX_SWR_PORTS, &ch_mask[0],
-				&ch_rate[0], NULL);
-		if (dapm->component) {
-			snd_soc_dapm_ignore_suspend(dapm, "SpkrLeft IN");
-			snd_soc_dapm_ignore_suspend(dapm, "SpkrLeft SPKR");
+		if (!component) {
+			pr_err("%s: %d WSA is found. Expect %d WSA.",
+				__func__, wsa_active_devs, pdata->wsa_max_devs);
+			return -EINVAL;
 		}
-	} else if (!strcmp(component->name_prefix, "SpkrRight")) {
-		dev_dbg(component->dev, "%s: setting right ch map to component %s\n",
-			__func__, component->name);
+
+		dapm = snd_soc_component_get_dapm(component);
+
 		wsa881x_set_channel_map(component, &spkright_ports[0],
 				WSA881X_MAX_SWR_PORTS, &ch_mask[0],
 				&ch_rate[0], NULL);
@@ -6663,206 +6729,12 @@ static int msm_wsa881x_init(struct snd_soc_component *component)
 			snd_soc_dapm_ignore_suspend(dapm, "SpkrRight IN");
 			snd_soc_dapm_ignore_suspend(dapm, "SpkrRight SPKR");
 		}
-	} else {
-		dev_err(component->dev, "%s: wrong component name %s\n", __func__,
-			component->name);
-		ret = -EINVAL;
-		goto err;
-	}
-	pdata = snd_soc_card_get_drvdata(component->card);
-	if (pdata && pdata->codec_root)
+
 		wsa881x_codec_info_create_codec_entry(pdata->codec_root,
 						      component);
-
-err:
-	return ret;
-}
-
-static int msm_init_wsa_dev(struct platform_device *pdev,
-				struct snd_soc_card *card)
-{
-	struct device_node *wsa_of_node;
-	u32 wsa_max_devs;
-	u32 wsa_dev_cnt;
-	int i;
-	struct msm_wsa881x_dev_info *wsa881x_dev_info;
-	const char *wsa_auxdev_name_prefix[1];
-	char *dev_name_str = NULL;
-	int found = 0;
-	int ret = 0;
-
-	/* Get maximum WSA device count for this platform */
-	ret = of_property_read_u32(pdev->dev.of_node,
-				   "qcom,wsa-max-devs", &wsa_max_devs);
-	if (ret) {
-		dev_info(&pdev->dev,
-			 "%s: wsa-max-devs property missing in DT %s, ret = %d\n",
-			 __func__, pdev->dev.of_node->full_name, ret);
-		card->num_aux_devs = 0;
-		return 0;
 	}
-	if (wsa_max_devs == 0) {
-		dev_warn(&pdev->dev,
-			 "%s: Max WSA devices is 0 for this target?\n",
-			 __func__);
-		card->num_aux_devs = 0;
-		return 0;
-	}
-
-	/* Get count of WSA device phandles for this platform */
-	wsa_dev_cnt = of_count_phandle_with_args(pdev->dev.of_node,
-						 "qcom,wsa-devs", NULL);
-	if (wsa_dev_cnt == -ENOENT) {
-		dev_warn(&pdev->dev, "%s: No wsa device defined in DT.\n",
-			 __func__);
-		goto err;
-	} else if (wsa_dev_cnt <= 0) {
-		dev_err(&pdev->dev,
-			"%s: Error reading wsa device from DT. wsa_dev_cnt = %d\n",
-			__func__, wsa_dev_cnt);
-		ret = -EINVAL;
-		goto err;
-	}
-
-	/*
-	 * Expect total phandles count to be NOT less than maximum possible
-	 * WSA count. However, if it is less, then assign same value to
-	 * max count as well.
-	 */
-	if (wsa_dev_cnt < wsa_max_devs) {
-		dev_dbg(&pdev->dev,
-			"%s: wsa_max_devs = %d cannot exceed wsa_dev_cnt = %d\n",
-			__func__, wsa_max_devs, wsa_dev_cnt);
-		wsa_max_devs = wsa_dev_cnt;
-	}
-
-	/* Make sure prefix string passed for each WSA device */
-	ret = of_property_count_strings(pdev->dev.of_node,
-					"qcom,wsa-aux-dev-prefix");
-	if (ret != wsa_dev_cnt) {
-		dev_err(&pdev->dev,
-			"%s: expecting %d wsa prefix. Defined only %d in DT\n",
-			__func__, wsa_dev_cnt, ret);
-		ret = -EINVAL;
-		goto err;
-	}
-
-	/*
-	 * Alloc mem to store phandle and index info of WSA device, if already
-	 * registered with ALSA core
-	 */
-	wsa881x_dev_info = devm_kcalloc(&pdev->dev, wsa_max_devs,
-					sizeof(struct msm_wsa881x_dev_info),
-					GFP_KERNEL);
-	if (!wsa881x_dev_info) {
-		ret = -ENOMEM;
-		goto err;
-	}
-
-	/*
-	 * search and check whether all WSA devices are already
-	 * registered with ALSA core or not. If found a node, store
-	 * the node and the index in a local array of struct for later
-	 * use.
-	 */
-	for (i = 0; i < wsa_dev_cnt; i++) {
-		wsa_of_node = of_parse_phandle(pdev->dev.of_node,
-					    "qcom,wsa-devs", i);
-		if (unlikely(!wsa_of_node)) {
-			/* we should not be here */
-			dev_err(&pdev->dev,
-				"%s: wsa dev node is not present\n",
-				__func__);
-			ret = -EINVAL;
-			goto err_free_dev_info;
-		}
-		if (soc_find_component_locked(wsa_of_node, NULL)) {
-			/* WSA device registered with ALSA core */
-			wsa881x_dev_info[found].of_node = wsa_of_node;
-			wsa881x_dev_info[found].index = i;
-			found++;
-			if (found == wsa_max_devs)
-				break;
-		}
-	}
-
-	if (found < wsa_max_devs) {
-		dev_dbg(&pdev->dev,
-			"%s: failed to find %d components. Found only %d\n",
-			__func__, wsa_max_devs, found);
-		return -EPROBE_DEFER;
-	}
-	dev_info(&pdev->dev,
-		"%s: found %d wsa881x devices registered with ALSA core\n",
-		__func__, found);
-
-	card->num_aux_devs = wsa_max_devs;
-	card->num_configs = wsa_max_devs;
-
-	/* Alloc array of AUX devs struct */
-	msm_aux_dev = devm_kcalloc(&pdev->dev, card->num_aux_devs,
-				       sizeof(struct snd_soc_aux_dev),
-				       GFP_KERNEL);
-	if (!msm_aux_dev) {
-		ret = -ENOMEM;
-		goto err_free_dev_info;
-	}
-
-	/* Alloc array of codec conf struct */
-	msm_codec_conf = devm_kcalloc(&pdev->dev, card->num_aux_devs,
-					  sizeof(struct snd_soc_codec_conf),
-					  GFP_KERNEL);
-	if (!msm_codec_conf) {
-		ret = -ENOMEM;
-		goto err_free_aux_dev;
-	}
-
-	for (i = 0; i < card->num_aux_devs; i++) {
-		dev_name_str = devm_kzalloc(&pdev->dev, DEV_NAME_STR_LEN,
-					    GFP_KERNEL);
-		if (!dev_name_str) {
-			ret = -ENOMEM;
-			goto err_free_cdc_conf;
-		}
-
-		ret = of_property_read_string_index(pdev->dev.of_node,
-						    "qcom,wsa-aux-dev-prefix",
-						    wsa881x_dev_info[i].index,
-						    wsa_auxdev_name_prefix);
-		if (ret) {
-			dev_err(&pdev->dev,
-				"%s: failed to read wsa aux dev prefix, ret = %d\n",
-				__func__, ret);
-			ret = -EINVAL;
-			goto err_free_dev_name_str;
-		}
-
-		snprintf(dev_name_str, strlen("wsa881x.%d"), "wsa881x.%d", i);
-		msm_aux_dev[i].name = dev_name_str;
-		msm_aux_dev[i].codec_name = NULL;
-		msm_aux_dev[i].codec_of_node =
-					wsa881x_dev_info[i].of_node;
-		msm_aux_dev[i].init = msm_wsa881x_init;
-		msm_codec_conf[i].dev_name = NULL;
-		msm_codec_conf[i].name_prefix = wsa_auxdev_name_prefix[0];
-		msm_codec_conf[i].of_node =
-				wsa881x_dev_info[i].of_node;
-	}
-	card->codec_conf = msm_codec_conf;
-	card->aux_dev = msm_aux_dev;
 
 	return 0;
-
-err_free_dev_name_str:
-	devm_kfree(&pdev->dev, dev_name_str);
-err_free_cdc_conf:
-	devm_kfree(&pdev->dev, msm_codec_conf);
-err_free_aux_dev:
-	devm_kfree(&pdev->dev, msm_aux_dev);
-err_free_dev_info:
-	devm_kfree(&pdev->dev, wsa881x_dev_info);
-err:
-	return ret;
 }
 
 static void msm_i2s_auxpcm_init(struct platform_device *pdev)
@@ -6946,9 +6818,16 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 		ret = -EPROBE_DEFER;
 		goto err;
 	}
-	ret = msm_init_wsa_dev(pdev, card);
-	if (ret)
-		goto err;
+
+	/* Get maximum WSA device count for this platform */
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"qcom,wsa-max-devs", &pdata->wsa_max_devs);
+	if (ret) {
+		dev_info(&pdev->dev,
+			"%s: wsa-max-devs property missing in DT %s, ret = %d\n",
+			__func__, pdev->dev.of_node->full_name, ret);
+		pdata->wsa_max_devs = 0;
+	}
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret == -EPROBE_DEFER) {
