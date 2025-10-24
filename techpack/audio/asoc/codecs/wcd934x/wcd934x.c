@@ -9537,6 +9537,11 @@ int tavil_codec_info_create_codec_entry(struct snd_info_entry *codec_root,
 		return -EINVAL;
 
 	tavil = snd_soc_component_get_drvdata(component);
+	if (tavil->entry) {
+		dev_dbg(tavil->dev,
+			"%s:wcd934x module already created\n", __func__);
+		return 0;
+	}
 	card = component->card;
 	tavil->entry = snd_info_create_module_entry(codec_root->module,
 					      "tavil", codec_root);
@@ -9545,7 +9550,11 @@ int tavil_codec_info_create_codec_entry(struct snd_info_entry *codec_root,
 			__func__);
 		return -ENOMEM;
 	}
-
+	tavil->entry->mode = S_IFDIR | 0555;
+	if (snd_info_register(tavil->entry) < 0) {
+		snd_info_free_entry(tavil->entry);
+		return -ENOMEM;
+	}
 	version_entry = snd_info_create_card_entry(card->snd_card,
 						   "version",
 						   tavil->entry);
@@ -9562,6 +9571,7 @@ int tavil_codec_info_create_codec_entry(struct snd_info_entry *codec_root,
 
 	if (snd_info_register(version_entry) < 0) {
 		snd_info_free_entry(version_entry);
+		snd_info_free_entry(tavil->entry);
 		return -ENOMEM;
 	}
 	tavil->version_entry = version_entry;
