@@ -1865,24 +1865,6 @@ struct ipa3_pc_mbox_data {
 	struct mbox_chan *mbox;
 };
 
-enum ipa_fw_load_state {
-	IPA_FW_LOAD_STATE_INIT,
-	IPA_FW_LOAD_STATE_FWFILE_READY,
-	IPA_FW_LOAD_STATE_SMMU_DONE,
-	IPA_FW_LOAD_STATE_LOAD_READY,
-	IPA_FW_LOAD_STATE_LOADED,
-};
-
-enum ipa_fw_load_event {
-	IPA_FW_LOAD_EVNT_FWFILE_READY,
-	IPA_FW_LOAD_EVNT_SMMU_DONE,
-};
-
-struct ipa_fw_load_data {
-	enum ipa_fw_load_state state;
-	struct mutex lock;
-};
-
 struct ipa3_app_clock_vote {
 	struct mutex mutex;
 	u32 cnt;
@@ -2167,7 +2149,7 @@ struct ipa3_context {
 
 	int (*client_lock_unlock[IPA_MAX_CLNT])(bool is_lock);
 
-	struct ipa_fw_load_data fw_load_data;
+	bool fw_loaded;
 
 	bool (*get_teth_port_state[IPA_MAX_CLNT])(void);
 
