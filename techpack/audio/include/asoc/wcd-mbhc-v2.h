@@ -7,6 +7,8 @@
 #include <linux/wait.h>
 #include <linux/stringify.h>
 #include <linux/power_supply.h>
+#include <linux/iio/consumer.h>
+#include <linux/qti_power_supply.h>
 #include <linux/extcon.h>
 #include <linux/extcon-provider.h>
 #include "wcdcal-hwdep.h"
@@ -423,6 +425,25 @@ enum mbhc_moisture_rref {
 	R_184_KOHM,
 };
 
+/* Non-FSA4480 analog audio */
+/* External IIO Channels */
+enum wcd_mbhc_ext_iio_channels {
+	WCD_MBHC_PSY_IIO_TYPEC_POWER_ROLE = 0,
+	WCD_MBHC_PSY_IIO_TYPEC_MODE,
+	WCD_MBHC_PSY_IIO_MAX,
+};
+
+static const char * const wcd_mbhc_ext_iio_channel_map[] = {
+	"typec_power_role", "typec_mode",
+};
+
+struct usbc_ana_audio_config {
+	int usbc_en1_gpio;
+	int usbc_force_gpio;
+	struct device_node *usbc_en1_gpio_p;
+	struct device_node *usbc_force_gpio_p;
+};
+
 struct wcd_mbhc_config {
 	bool read_fw_bin;
 	void *calibration;
@@ -439,6 +460,10 @@ struct wcd_mbhc_config {
 	bool enable_anc_mic_detect;
 	u32 enable_usbc_analog;
 	bool moisture_duty_cycle_en;
+
+	/* Non-FSA4480 analog audio */
+	bool enable_usbc_analog_legacy;
+	struct usbc_ana_audio_config usbc_analog_cfg;
 };
 
 struct wcd_mbhc_intr {
@@ -623,6 +648,13 @@ struct wcd_mbhc {
 	struct notifier_block fsa_nb;
 
 	struct extcon_dev *extdev;
+
+	/* Non-FSA4480 analog audio */
+	bool usbc_force_pr_mode;
+	atomic_t usbc_mode;
+	struct notifier_block psy_nb;
+	struct work_struct usbc_ana_legacy_work;
+	struct iio_channel *ext_iio_channels[WCD_MBHC_PSY_IIO_MAX];
 };
 
 void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,
