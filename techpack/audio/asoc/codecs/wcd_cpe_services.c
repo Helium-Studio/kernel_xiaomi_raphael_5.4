@@ -283,7 +283,7 @@ static enum cpe_svc_result cpe_is_command_valid(
 
 static int cpe_register_read(u32 reg, u8 *val)
 {
-	*(val) = snd_soc_read(cpe_d.cdc_priv, reg);
+	*(val) = snd_soc_component_read32(cpe_d.cdc_priv, reg);
 	return 0;
 }
 
@@ -292,7 +292,7 @@ static enum cpe_svc_result cpe_update_bits(u32 reg,
 {
 	int ret = 0;
 
-	ret = snd_soc_update_bits(cpe_d.cdc_priv, reg,
+	ret = snd_soc_component_update_bits(cpe_d.cdc_priv, reg,
 				  mask, value);
 	if (ret < 0)
 		return CPE_SVC_FAILED;
@@ -308,7 +308,7 @@ static int cpe_register_write(u32 reg, u32 val)
 		pr_debug("%s: reg = 0x%x, value = 0x%x\n",
 			  __func__, reg, val);
 
-	ret = snd_soc_write(cpe_d.cdc_priv, reg, val);
+	ret = snd_soc_component_write(cpe_d.cdc_priv, reg, val);
 	if (ret < 0)
 		return CPE_SVC_FAILED;
 
@@ -317,8 +317,9 @@ static int cpe_register_write(u32 reg, u32 val)
 
 static int cpe_register_write_repeat(u32 reg, u8 *ptr, u32 to_write)
 {
-	struct snd_soc_codec *codec = cpe_d.cdc_priv;
-	struct wcd9xxx *wcd9xxx = dev_get_drvdata(codec->dev->parent);
+	struct snd_soc_component *component = cpe_d.cdc_priv;
+	struct  wcd9xxx *wcd9xxx =
+			dev_get_drvdata(component->dev->parent);
 	int ret = 0;
 
 	ret = wcd9xxx_slim_write_repeat(wcd9xxx, reg, to_write, ptr);
@@ -629,6 +630,25 @@ static enum cpe_svc_result cpe_svc_tgt_init(struct cpe_svc_codec_info_v1 *i,
 	return CPE_SVC_SUCCESS;
 }
 
+static enum cmi_api_result cpe_to_cmi_result(enum cpe_svc_result result)
+{
+	switch (result) {
+	case CPE_SVC_SUCCESS:
+		return 0;
+	case CPE_SVC_BUSY:
+		return CMI_API_BUSY;
+	case CPE_SVC_NO_MEMORY:
+		return CMI_API_NO_MEMORY;
+	case CPE_SVC_NOT_READY:
+		return CMI_API_NOT_READY;
+	case CPE_SVC_INVALID_HANDLE:
+	case CPE_SVC_SHUTTING_DOWN:
+	case CPE_SVC_FAILED:
+	default:
+		return CMI_API_FAILED;
+	}
+}
+
 static void cpe_notify_cmi_client(struct cpe_info *t_info, u8 *payload,
 		enum cpe_svc_result result)
 {
@@ -647,7 +667,7 @@ static void cpe_notify_cmi_client(struct cpe_info *t_info, u8 *payload,
 	service = CMI_HDR_GET_SERVICE(hdr);
 
 	notif.event = CMI_API_MSG;
-	notif.result = result;
+	notif.result = cpe_to_cmi_result(result);
 	notif.message = payload;
 
 	CPE_SVC_GRAB_LOCK(&cpe_d.cpe_svc_lock, "cpe_svc");
@@ -1339,7 +1359,7 @@ static enum cpe_process_result cpe_mt_process_cmd(
 
 		cpe_change_state(t_info, CPE_STATE_SENDING_MSG,
 				CPE_SS_MSG_SEND_INBOX);
-		rc = cpe_send_msg_to_inbox(t_info, 0, m);
+		cpe_rc = cpe_send_msg_to_inbox(t_info, 0, m);
 		break;
 
 	case CPE_CMD_SEND_MSG_COMPLETE:
