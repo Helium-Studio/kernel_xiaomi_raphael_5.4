@@ -765,6 +765,7 @@ static const struct soc_id soc_id[] = {
 	{ 311, "APQ8096AU" },
 	{ 312, "APQ8096SG" },
 	{ 356, "KONA" },
+	{ 339, "SM8150" },
 	{ 362, "SA8155" },
 	{ 367, "SA8155P" },
 	{ 377, "SA6155P" },
