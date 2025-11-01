@@ -9,7 +9,7 @@
 #define MASTER_APPSS_PROC				0
 #define MASTER_GPU_TCU				1
 #define MASTER_SYS_TCU				2
-#define MASTER_IPA_CORE				3
+/* 3 was previously assigned to MASTER_IPA_CORE, now represented as RPMh clock */
 #define MASTER_LLCC				4
 #define MASTER_A1NOC_CFG				5
 #define MASTER_A2NOC_CFG				6
@@ -67,7 +67,7 @@
 #define MASTER_USB3_1				58
 #define MASTER_SENSORS_AHB			59
 #define SLAVE_EBI1				512
-#define SLAVE_IPA_CORE				513
+/* 513 was previously assigned to SLAVE_IPA_CORE, now represented as RPMh clock */
 #define SLAVE_A1NOC_CFG				514
 #define SLAVE_A2NOC_CFG				515
 #define SLAVE_AHB2PHY_SOUTH				516
