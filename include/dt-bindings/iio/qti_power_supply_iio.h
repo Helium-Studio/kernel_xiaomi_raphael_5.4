@@ -154,4 +154,8 @@
 
 /* BMS */
 #define PSY_IIO_CLEAR_SOH			0x7c
+
+/* QNOVO5 */
+#define PSY_IIO_VOLTAGE_QNOVO       0x7e
+#define PSY_IIO_CURRENT_QNOVO       0x7f
 #endif /* __QTI_POWER_SUPPLY_IIO_H__ */
