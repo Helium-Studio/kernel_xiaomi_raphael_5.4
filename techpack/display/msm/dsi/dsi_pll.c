@@ -23,6 +23,11 @@ static int dsi_pll_clock_register(struct platform_device *pdev,
 	case DSI_PLL_5NM:
 		rc = dsi_pll_clock_register_5nm(pdev, pll_res);
 		break;
+	case DSI_PLL_7NM:
+	case DSI_PLL_7NM_V2:
+	case DSI_PLL_7NM_V4_1:
+		rc = dsi_pll_clock_register_7nm(pdev, pll_res);
+		break;
 	case DSI_PLL_10NM:
 		rc = dsi_pll_clock_register_10nm(pdev, pll_res);
 		break;
@@ -144,12 +149,18 @@ int dsi_pll_init(struct platform_device *pdev, struct dsi_pll_resource **pll)
 	DSI_PLL_INFO(pll_res, "DSI pll label = %s\n", label);
 
 	/**
-	  * Currently, Only supports 5nm and 10nm PLL version. Will add
-	  * support for other versions as needed.
+	  * Currently, Only supports 5nm, 7nm and 10nm PLL version.
+	  * Will add support for other versions as needed.
 	  */
 
 	if (!strcmp(label, "dsi_pll_5nm"))
 		pll_res->pll_revision = DSI_PLL_5NM;
+	else if (!strcmp(label, "dsi_pll_7nm"))
+		pll_res->pll_revision = DSI_PLL_7NM;
+	else if (!strcmp(label, "dsi_pll_7nm_v2"))
+		pll_res->pll_revision = DSI_PLL_7NM_V2;
+	else if (!strcmp(label, "dsi_pll_7nm_v4_1"))
+		pll_res->pll_revision = DSI_PLL_7NM_V4_1;
 	else if (!strcmp(label, "dsi_pll_10nm"))
 		pll_res->pll_revision = DSI_PLL_10NM;
 	else

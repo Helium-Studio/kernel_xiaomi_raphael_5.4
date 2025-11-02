@@ -54,6 +54,9 @@ struct lpfr_cfg {
 
 enum {
 	DSI_PLL_5NM,
+	DSI_PLL_7NM,
+	DSI_PLL_7NM_V2,
+	DSI_PLL_7NM_V4_1,
 	DSI_PLL_10NM,
 	DSI_UNKNOWN_PLL,
 };
@@ -227,6 +230,9 @@ static inline struct dsi_pll_vco_clk *to_vco_clk_hw(struct clk_hw *hw)
 }
 
 int dsi_pll_clock_register_5nm(struct platform_device *pdev,
+				  struct dsi_pll_resource *pll_res);
+
+int dsi_pll_clock_register_7nm(struct platform_device *pdev,
 				  struct dsi_pll_resource *pll_res);
 
 int dsi_pll_clock_register_10nm(struct platform_device *pdev,
