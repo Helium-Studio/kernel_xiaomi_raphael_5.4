@@ -177,56 +177,6 @@ static const char * const gcc_parent_names_7[] = {
 	"core_bi_pll_test_se",
 };
 
-static struct clk_dummy measure_only_cdsp_clk = {
-	.rrate = 1000,
-	.hw.init = &(struct clk_init_data){
-		.name = "measure_only_cdsp_clk",
-		.ops = &clk_dummy_ops,
-	},
-};
-
-static struct clk_dummy measure_only_snoc_clk = {
-	.rrate = 1000,
-	.hw.init = &(struct clk_init_data){
-		.name = "measure_only_snoc_clk",
-		.ops = &clk_dummy_ops,
-	},
-};
-
-static struct clk_dummy measure_only_cnoc_clk = {
-	.rrate = 1000,
-	.hw.init = &(struct clk_init_data){
-		.name = "measure_only_cnoc_clk",
-		.ops = &clk_dummy_ops,
-	},
-};
-
-static struct clk_dummy measure_only_mccc_clk = {
-	.rrate = 1000,
-	.hw.init = &(struct clk_init_data){
-		.name = "measure_only_mccc_clk",
-		.ops = &clk_dummy_ops,
-	},
-};
-
-static struct clk_dummy measure_only_ipa_2x_clk = {
-	.rrate = 1000,
-	.hw.init = &(struct clk_init_data){
-		.name = "measure_only_ipa_2x_clk",
-		.ops = &clk_dummy_ops,
-	},
-};
-
-/* Only used to cast a vote on the MMCX rail until late_initcall_sync */
-static struct clk_dummy mmcx_clk = {
-	.rrate = 1000,
-	.hw.init = &(struct clk_init_data){
-		.name = "mmcx_clk",
-		.ops = &clk_dummy_ops,
-		.vdd_class = &vdd_mm,
-	},
-};
-
 static struct pll_vco trion_vco[] = {
 	{ 249600000, 2000000000, 0 },
 };
@@ -3946,15 +3896,6 @@ static struct clk_branch gcc_video_xo_clk = {
 	},
 };
 
-struct clk_hw *gcc_sm8150_hws[] = {
-	[MEASURE_ONLY_CDSP_CLK] = &measure_only_cdsp_clk.hw,
-	[MEASURE_ONLY_SNOC_CLK] = &measure_only_snoc_clk.hw,
-	[MEASURE_ONLY_CNOC_CLK] = &measure_only_cnoc_clk.hw,
-	[MEASURE_ONLY_MCCC_CLK] = &measure_only_mccc_clk.hw,
-	[MEASURE_ONLY_IPA_2X_CLK] = &measure_only_ipa_2x_clk.hw,
-	[MMCX_CLK] = &mmcx_clk.hw,
-};
-
 static struct clk_regmap *gcc_sm8150_clocks[] = {
 	[GCC_AGGRE_NOC_PCIE_TBU_CLK] = &gcc_aggre_noc_pcie_tbu_clk.clkr,
 	[GCC_AGGRE_UFS_CARD_AXI_CLK] = &gcc_aggre_ufs_card_axi_clk.clkr,
@@ -4279,9 +4220,8 @@ static int gcc_sm8150_fixup(struct platform_device *pdev, struct regmap *regmap)
 
 static int gcc_sm8150_probe(struct platform_device *pdev)
 {
-	struct clk *clk;
 	struct regmap *regmap;
-	int i, ret = 0;
+	int ret = 0;
 
 	regmap = qcom_cc_map(pdev, &gcc_sm8150_desc);
 	if (IS_ERR(regmap))
@@ -4296,13 +4236,6 @@ static int gcc_sm8150_probe(struct platform_device *pdev)
 		if (!(PTR_ERR(vdd_mm.regulator[0]) == -EPROBE_DEFER))
 			dev_err(&pdev->dev, "Unable to get vdd_mm regulator\n");
 		return PTR_ERR(vdd_mm.regulator[0]);
-	}
-
-	/* register hardware clocks */
-	for (i = 0; i < ARRAY_SIZE(gcc_sm8150_hws); i++) {
-		clk = devm_clk_register(&pdev->dev, gcc_sm8150_hws[i]);
-		if (IS_ERR(clk))
-			return PTR_ERR(clk);
 	}
 
 	vdd_cx.regulator[0] = devm_regulator_get(&pdev->dev, "vdd_cx");

@@ -41,9 +41,4 @@
 #define GPUCC_GPU_CC_SPDM_BCR					4
 #define GPUCC_GPU_CC_XO_BCR					5
 
-/* Dummy clocks for rate measurement */
-#define MEASURE_ONLY_GPU_CC_CX_GFX3D_CLK		0
-#define MEASURE_ONLY_GPU_CC_CX_GFX3D_SLV_CLK	1
-#define MEASURE_ONLY_GPU_CC_GX_GFX3D_CLK		2
-
 #endif
