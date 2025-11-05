@@ -32,8 +32,6 @@
 #include "clk-alpha-pll.h"
 #include "vdd-level-sm8150.h"
 
-#define F(f, s, h, m, n) { (f), (s), (2 * (h) - 1), (m), (n) }
-
 #define CRC_SID_FSM_CTRL		0x100c
 #define CRC_SID_FSM_CTRL_SETTING	0x800000
 #define CRC_MND_CFG			0x1010

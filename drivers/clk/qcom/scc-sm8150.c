@@ -31,8 +31,6 @@
 #include "clk-alpha-pll.h"
 #include "vdd-level-sm8150.h"
 
-#define F(f, s, h, m, n) { (f), (s), (2 * (h) - 1), (m), (n) }
-
 static DEFINE_VDD_REGULATORS(vdd_scc_cx, VDD_NUM, 1, vdd_corner);
 
 static struct clk_vdd_class *scc_cc_sm8150_regulators[] = {

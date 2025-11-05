@@ -32,8 +32,6 @@
 #include "clk-alpha-pll.h"
 #include "vdd-level-sm8150.h"
 
-#define F(f, s, h, m, n) { (f), (s), (2 * (h) - 1), (m), (n) }
-
 #define GCC_NPU_MISC				0x4d110
 #define GCC_GPU_MISC				0x71028
 
