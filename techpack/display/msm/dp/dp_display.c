@@ -1514,6 +1514,8 @@ static int dp_display_init_aux_switch(struct dp_display_private *dp)
 	const char *phandle = "qcom,dp-aux-switch";
 	u32 retry;
 
+	return rc;
+
 	if (dp->aux_switch_ready)
 		return rc;
 
