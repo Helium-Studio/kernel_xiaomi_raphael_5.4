@@ -934,6 +934,11 @@ struct adc5_channels {
 		  BIT(IIO_CHAN_INFO_PROCESSED),				\
 		  _pre, _scale)						\
 
+#define ADC5_CHAN_POWER(_dname, _pre, _scale)				\
+	ADC5_CHAN(_dname, IIO_POWER,					\
+		  BIT(IIO_CHAN_INFO_PROCESSED),				\
+		  _pre, _scale)						\
+
 #define ADC5_CHAN_CUR(_dname, _pre, _scale)				\
 	ADC5_CHAN(_dname, IIO_CURRENT,					\
 		  BIT(IIO_CHAN_INFO_PROCESSED),				\
@@ -947,6 +952,8 @@ static const struct adc5_channels adc5_chans_pmic[ADC5_MAX_CHANNEL] = {
 	[ADC5_VPH_PWR]		= ADC5_CHAN_VOLT("vph_pwr", 1,
 					SCALE_HW_CALIB_DEFAULT)
 	[ADC5_VBAT_SNS]		= ADC5_CHAN_VOLT("vbat_sns", 1,
+					SCALE_HW_CALIB_DEFAULT)
+	[ADC5_VCOIN]		= ADC5_CHAN_VOLT("vcoin", 1,
 					SCALE_HW_CALIB_DEFAULT)
 	[ADC5_DIE_TEMP]		= ADC5_CHAN_TEMP("die_temp", 0,
 					SCALE_HW_CALIB_PMIC_THERM)
@@ -983,6 +990,14 @@ static const struct adc5_channels adc5_chans_pmic[ADC5_MAX_CHANNEL] = {
 					SCALE_HW_CALIB_PM5_SMB_TEMP)
 	[ADC5_PARALLEL_ISENSE]	= ADC5_CHAN_VOLT("parallel_isense", 0,
 					SCALE_HW_CALIB_PM5_CUR)
+	[ADC5_INT_EXT_ISENSE_VBAT_VDATA]	= ADC5_CHAN_POWER(
+					"int_ext_vbat_isense", 0,
+						SCALE_HW_CALIB_PM5_CUR)
+	[ADC5_EXT_ISENSE_VBAT_VDATA]	= ADC5_CHAN_POWER("ext_vbat_isense", 0,
+					SCALE_HW_CALIB_PM5_CUR)
+	[ADC5_PARALLEL_ISENSE_VBAT_VDATA] = ADC5_CHAN_POWER(
+					"parallel_vbat_isense", 0,
+						SCALE_HW_CALIB_PM5_CUR)
 	[ADC5_GPIO1_100K_PU]	= ADC5_CHAN_TEMP("gpio1_100k_pu", 0,
 					SCALE_HW_CALIB_THERM_100K_PULLUP)
 	[ADC5_GPIO2_100K_PU]	= ADC5_CHAN_TEMP("gpio2_100k_pu", 0,
