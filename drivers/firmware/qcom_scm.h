@@ -176,8 +176,13 @@ extern int __qcom_scm_dcvs_update_ca_v2(struct device *dev, int level,
 					int context_count);
 
 #define QCOM_SCM_SVC_ES				0x10
+#ifdef CONFIG_ARCH_SM8150
+#define QCOM_SCM_ES_CONFIG_SET_ICE_KEY		0x04
+#define QCOM_SCM_ES_CLEAR_ICE_KEY		0x03
+#else
 #define QCOM_SCM_ES_CONFIG_SET_ICE_KEY		0x05
 #define QCOM_SCM_ES_CLEAR_ICE_KEY		0x06
+#endif
 extern int __qcom_scm_config_set_ice_key(struct device *dev, uint32_t index,
 					 phys_addr_t paddr, size_t size,
 					 uint32_t cipher,
