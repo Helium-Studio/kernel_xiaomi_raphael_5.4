@@ -422,6 +422,7 @@ DEFINE_CLK_RPMH_VRM(sm8150, ln_bb_clk3, ln_bb_clk3_ao, "lnbclka3", 2);
 DEFINE_CLK_RPMH_VRM(sm8150, rf_clk1, rf_clk1_ao, "rfclka1", 1);
 DEFINE_CLK_RPMH_VRM(sm8150, rf_clk2, rf_clk2_ao, "rfclka2", 1);
 DEFINE_CLK_RPMH_VRM(sm8150, rf_clk3, rf_clk3_ao, "rfclka3", 1);
+DEFINE_CLK_RPMH_BCM(sm8150, ipa, "IP0");
 
 static struct clk_hw *sm8150_rpmh_clocks[] = {
 	[RPMH_CXO_CLK]		= &sm8150_bi_tcxo.hw,
@@ -436,6 +437,7 @@ static struct clk_hw *sm8150_rpmh_clocks[] = {
 	[RPMH_RF_CLK2_A]	= &sm8150_rf_clk2_ao.hw,
 	[RPMH_RF_CLK3]		= &sm8150_rf_clk3.hw,
 	[RPMH_RF_CLK3_A]	= &sm8150_rf_clk3_ao.hw,
+	[RPMH_IPA_CLK]		= &sm8150_ipa.hw,
 };
 
 static const struct clk_rpmh_desc clk_rpmh_sm8150 = {
