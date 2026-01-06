@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -640,4 +641,11 @@ static inline bool sde_encoder_is_widebus_enabled(struct drm_encoder *drm_enc)
 	sde_enc = to_sde_encoder_virt(drm_enc);
 	return sde_enc->mode_info.wide_bus_en;
 }
+
+/**
+ * sde_encoder_vid_wait_for_active - wait Vactive region for some mark region
+ * @drm_enc:    Pointer to drm encoder structure
+ * @Return:     non zero value if wait timeout occurred
+ */
+int sde_encoder_vid_wait_for_active(struct drm_encoder *enc);
 #endif /* __SDE_ENCODER_H__ */

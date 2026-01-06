@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021 The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -395,6 +396,8 @@ struct sde_crtc {
 
 	struct drm_property_blob *dspp_blob_info;
 	u32 cached_encoder_mask;
+
+	bool is_primary_sde_crtc;
 };
 
 enum sde_crtc_dirty_flags {
@@ -463,6 +466,10 @@ struct sde_crtc_state {
 	struct sde_hw_scaler3_lut_cfg scl3_lut_cfg;
 
 	struct sde_core_perf_params new_perf;
+
+	bool finger_down;
+	bool dim_layer_status;
+	struct sde_hw_dim_layer *fingerprint_dim_layer;
 };
 
 enum sde_crtc_irq_state {
@@ -953,6 +960,8 @@ void sde_crtc_static_cache_read_kickoff(struct drm_crtc *crtc);
  */
 int sde_crtc_get_num_datapath(struct drm_crtc *crtc,
 	struct drm_connector *connector, struct drm_crtc_state *crtc_state);
+
+uint32_t sde_crtc_get_mi_fod_sync_info(struct sde_crtc_state *cstate);
 
 /**
  * sde_crtc_reset_sw_state - reset dirty proerties on crtc and

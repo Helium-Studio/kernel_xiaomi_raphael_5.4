@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (C) 2014-2021 The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -3382,6 +3383,18 @@ static void _sde_plane_atomic_disable(struct drm_plane *plane,
 				multirect_index, SDE_SSPP_MULTIRECT_TIME_MX);
 }
 
+int sde_plane_check_fod_layer(const struct drm_plane_state *drm_state)
+{
+	struct sde_plane_state *pstate;
+
+	if (!drm_state)
+		return 0;
+
+	pstate = to_sde_plane_state(drm_state);
+
+	return sde_plane_get_property(pstate, PLANE_PROP_FOD);
+}
+
 static void sde_plane_atomic_update(struct drm_plane *plane,
 				struct drm_plane_state *old_state)
 {
@@ -3778,6 +3791,9 @@ static void _sde_plane_install_properties(struct drm_plane *plane,
 
 	msm_property_install_range(&psde->property_info, "zpos",
 		0x0, 0, zpos_max, zpos_def, PLANE_PROP_ZPOS);
+
+	msm_property_install_range(&psde->property_info, "fod",
+		0x0, 0, INT_MAX, 0, PLANE_PROP_FOD);
 
 	msm_property_install_range(&psde->property_info, "alpha",
 		0x0, 0, 255, 255, PLANE_PROP_ALPHA);

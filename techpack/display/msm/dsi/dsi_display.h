@@ -2,6 +2,7 @@
 /*
  * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  */
 
 #ifndef _DSI_DISPLAY_H_
@@ -206,6 +207,7 @@ struct dsi_display {
 	struct drm_connector *ext_conn;
 
 	const char *name;
+	bool is_prim_display;
 	const char *display_type;
 	struct list_head list;
 	bool is_cont_splash_enabled;
@@ -671,6 +673,10 @@ void dsi_display_enable_event(struct drm_connector *connector,
 int dsi_display_set_backlight(struct drm_connector *connector,
 		void *display, u32 bl_lvl);
 
+int dsi_panel_set_doze_backlight(struct dsi_display *display);
+
+ssize_t dsi_panel_get_doze_backlight(struct dsi_display *display, char *buf);
+
 /**
  * dsi_display_check_status() - check if panel is dead or alive
  * @connector:          Pointer to drm connector structure
@@ -834,5 +840,12 @@ int dsi_display_ctrl_vreg_on(struct dsi_display *display);
  * Return: Zero on Success
  */
 int dsi_display_ctrl_vreg_off(struct dsi_display *display);
+
+struct dsi_display *get_primary_display(void);
+
+int dsi_display_cmd_engine_enable(struct dsi_display *display);
+int dsi_display_cmd_engine_disable(struct dsi_display *display);
+int dsi_host_alloc_cmd_tx_buffer(struct dsi_display *display);
+int dsi_display_esd_irq_ctrl(struct dsi_display *display, bool enable);
 
 #endif /* _DSI_DISPLAY_H_ */

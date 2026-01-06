@@ -2,18 +2,23 @@
 /*
  * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  */
 
 
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_notifier.h>
+#include <linux/notifier.h>
+#include <drm/drm_bridge.h>
+#include <linux/pm_wakeup.h>
 
 #include "msm_kms.h"
 #include "sde_connector.h"
 #include "dsi_drm.h"
 #include "sde_trace.h"
 #include "sde_dbg.h"
+#include "dsi_defs.h"
 
 #define to_dsi_bridge(x)     container_of((x), struct dsi_bridge, base)
 #define to_dsi_state(x)      container_of((x), struct dsi_connector_state, base)
@@ -69,6 +74,13 @@ static struct dsi_display_mode_priv_info default_priv_info = {
 	.panel_prefill_lines = DEFAULT_PANEL_PREFILL_LINES,
 	.dsc_enabled = false,
 };
+
+#define WAIT_RESUME_TIMEOUT 200
+
+struct dsi_bridge *gbridge;
+static struct delayed_work prim_panel_work;
+static atomic_t prim_panel_is_on;
+static struct wakeup_source *prim_panel_wakelock;
 
 static void convert_to_dsi_mode(const struct drm_display_mode *drm_mode,
 				struct dsi_display_mode *dsi_mode)
@@ -271,6 +283,108 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 	if (rc)
 		DSI_ERR("Continuous splash pipeline cleanup failed, rc=%d\n",
 									rc);
+	if (c_bridge->display->is_prim_display)
+		atomic_set(&prim_panel_is_on, true);
+}
+
+int panel_disp_param_send(struct dsi_display *display, int cmd);
+static void dsi_bridge_disp_param_set(struct drm_bridge *bridge, int cmd)
+{
+	int rc = 0;
+	struct dsi_bridge *c_bridge;
+
+	if (!bridge) {
+		pr_err("Invalid params\n");
+		return;
+	}
+
+	c_bridge = to_dsi_bridge(bridge);
+
+	SDE_ATRACE_BEGIN("panel_disp_param_send");
+	rc = panel_disp_param_send(c_bridge->display, cmd);
+	if (rc) {
+		pr_err("[%d] DSI disp param send failed, rc=%d\n",
+		       c_bridge->id, rc);
+	}
+	SDE_ATRACE_END("panel_disp_param_send");
+}
+
+ssize_t panel_disp_param_receive(struct dsi_display *display, char *buf);
+static ssize_t dsi_bridge_disp_param_get(struct drm_bridge *bridge, char *buf)
+{
+	ssize_t rc = 0;
+	struct dsi_bridge *c_bridge;
+
+	if (!bridge) {
+		pr_err("Invalid params\n");
+		return rc;
+	}
+	c_bridge = to_dsi_bridge(bridge);
+	rc = panel_disp_param_receive(c_bridge->display, buf);
+	return rc;
+}
+
+static int dsi_bridge_get_panel_info(struct drm_bridge *bridge, char *buf)
+{
+	int rc = 0;
+	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
+
+	if (!c_bridge) {
+		pr_err("Invalid params\n");
+		return rc;
+	}
+
+	if (c_bridge->display->name)
+		return snprintf(buf, PAGE_SIZE, c_bridge->display->name);
+
+	return rc;
+}
+
+int dsi_panel_set_doze_backlight(struct dsi_display *display);
+
+ssize_t dsi_panel_get_doze_backlight(struct dsi_display *display, char *buf);
+
+int dsi_bridge_disp_set_doze_backlight(struct drm_connector *connector,
+			int doze_backlight)
+{
+	struct dsi_display *display = NULL;
+	struct dsi_bridge *c_bridge = NULL;
+
+	if (!connector || !connector->encoder || !connector->encoder->bridge) {
+		pr_err("Invalid connector/encoder/bridge ptr\n");
+		return -EINVAL;
+	}
+
+	c_bridge =  to_dsi_bridge(connector->encoder->bridge);
+	display = c_bridge->display;
+	if (!display || !display->panel || !display->drm_dev) {
+		pr_err("Invalid display/panel/drm_dev ptr\n");
+		return -EINVAL;
+	} else
+		display->drm_dev->doze_brightness = doze_backlight;
+
+	return dsi_panel_set_doze_backlight(display);
+}
+
+ssize_t dsi_bridge_disp_get_doze_backlight(struct drm_connector *connector,
+			char *buf)
+{
+	struct dsi_display *display = NULL;
+	struct dsi_bridge *c_bridge = NULL;
+
+	if (!connector || !connector->encoder || !connector->encoder->bridge) {
+		pr_err("Invalid connector/encoder/bridge ptr\n");
+		return -EINVAL;
+	}
+
+	c_bridge =  to_dsi_bridge(connector->encoder->bridge);
+	display = c_bridge->display;
+	if (!display || !display->panel) {
+		pr_err("Invalid display/panel ptr\n");
+		return -EINVAL;
+	}
+
+	return dsi_panel_get_doze_backlight(display, buf);
 }
 
 static void dsi_bridge_enable(struct drm_bridge *bridge)
@@ -306,6 +420,8 @@ static void dsi_bridge_enable(struct drm_bridge *bridge)
 			sde_connector_schedule_status_work(display->drm_conn,
 				true);
 	}
+
+	dsi_display_esd_irq_ctrl(display, true);
 }
 
 static void dsi_bridge_disable(struct drm_bridge *bridge)
@@ -328,6 +444,9 @@ static void dsi_bridge_disable(struct drm_bridge *bridge)
 	drm_notifier_call_chain(DRM_R_EARLY_EVENT_BLANK, &notify_data);
 
 	display = c_bridge->display;
+
+	dsi_display_esd_irq_ctrl(display, false);
+
 	private_flags =
 		bridge->encoder->crtc->state->adjusted_mode.private_flags;
 
@@ -385,6 +504,21 @@ static void dsi_bridge_post_disable(struct drm_bridge *bridge)
 	}
 	drm_notifier_call_chain(DRM_EVENT_BLANK, &notify_data);
 	SDE_ATRACE_END("dsi_bridge_post_disable");
+
+	if (c_bridge->display->is_prim_display)
+		atomic_set(&prim_panel_is_on, false);
+}
+
+static void prim_panel_off_delayed_work(struct work_struct *work)
+{
+	mutex_lock(&gbridge->base.lock);
+	if (atomic_read(&prim_panel_is_on)) {
+		dsi_bridge_post_disable(&gbridge->base);
+		__pm_relax(prim_panel_wakelock);
+		mutex_unlock(&gbridge->base.lock);
+		return;
+	}
+	mutex_unlock(&gbridge->base.lock);
 }
 
 static void dsi_bridge_mode_set(struct drm_bridge *bridge,
@@ -673,6 +807,9 @@ static const struct drm_bridge_funcs dsi_bridge_ops = {
 	.disable      = dsi_bridge_disable,
 	.post_disable = dsi_bridge_post_disable,
 	.mode_set     = dsi_bridge_mode_set,
+	.disp_param_set = dsi_bridge_disp_param_set,
+	.disp_param_get = dsi_bridge_disp_param_get,
+	.disp_get_panel_info = dsi_bridge_get_panel_info,
 };
 
 int dsi_conn_set_info_blob(struct drm_connector *connector,
@@ -1223,6 +1360,19 @@ struct dsi_bridge *dsi_drm_bridge_init(struct dsi_display *display,
 	}
 
 	encoder->bridge = &bridge->base;
+	encoder->bridge->is_dsi_drm_bridge = true;
+	mutex_init(&encoder->bridge->lock);
+
+	if (display->is_prim_display) {
+		gbridge = bridge;
+		atomic_set(&resume_pending, 0);
+		prim_panel_wakelock = wakeup_source_create("prim_panel_wakelock");
+		wakeup_source_add(prim_panel_wakelock);
+		atomic_set(&prim_panel_is_on, false);
+		init_waitqueue_head(&resume_wait_q);
+		INIT_DELAYED_WORK(&prim_panel_work, prim_panel_off_delayed_work);
+	}
+
 	return bridge;
 error_free_bridge:
 	kfree(bridge);
@@ -1234,6 +1384,13 @@ void dsi_drm_bridge_cleanup(struct dsi_bridge *bridge)
 {
 	if (bridge && bridge->base.encoder)
 		bridge->base.encoder->bridge = NULL;
+
+	if (bridge == gbridge) {
+		atomic_set(&prim_panel_is_on, false);
+		cancel_delayed_work_sync(&prim_panel_work);
+		wakeup_source_remove(prim_panel_wakelock);
+		wakeup_source_destroy(prim_panel_wakelock);
+	}
 
 	kfree(bridge);
 }

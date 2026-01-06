@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -43,8 +44,34 @@
 #include "sde_trace.h"
 #include "sde_vm.h"
 
+#include <linux/err.h>
+#include <linux/list.h>
+#include <linux/of.h>
+#include <linux/err.h>
+#include "msm_drv.h"
+#include "sde_connector.h"
+#include "msm_mmu.h"
+#include "dsi_display.h"
+#include "dsi_panel.h"
+#include "dsi_ctrl.h"
+#include "dsi_ctrl_hw.h"
+#include "dsi_drm.h"
+#include "dsi_clk.h"
+#include "dsi_pwr.h"
+#include "sde_dbg.h"
+#include <linux/kobject.h>
+#include <linux/string.h>
+#include <linux/sysfs.h>
+#include <linux/module.h>
+#include <linux/init.h>
+#include <drm/drm_notifier.h>
+#include <drm/drm_mipi_dsi.h>
+
 #define SDE_PSTATES_MAX (SDE_STAGE_MAX * 4)
 #define SDE_MULTIRECT_PLANE_MAX (SDE_STAGE_MAX * 2)
+
+#define to_drm_connector(d) dev_get_drvdata(d)
+#define to_dsi_bridge(x)  container_of((x), struct dsi_bridge, base)
 
 struct sde_crtc_custom_events {
 	u32 event;
@@ -96,6 +123,8 @@ static struct sde_crtc_custom_events custom_events[] = {
 #define MILI_TO_MICRO			1000
 
 #define SKIP_STAGING_PIPE_ZPOS		255
+
+int dim_layer_alpha;
 
 static inline struct sde_kms *_sde_crtc_get_kms(struct drm_crtc *crtc)
 {
@@ -1560,6 +1589,12 @@ static void _sde_crtc_blend_setup_mixer(struct drm_crtc *crtc,
 			for (i = 0; i < cstate->num_dim_layers; i++)
 				_sde_crtc_setup_dim_layer_cfg(crtc, sde_crtc,
 						mixer, &cstate->dim_layer[i]);
+			if (cstate->fingerprint_dim_layer) {
+				SDE_ATRACE_BEGIN("dim layer blend setup mixer");
+				_sde_crtc_setup_dim_layer_cfg(crtc, sde_crtc,
+						mixer, cstate->fingerprint_dim_layer);
+				SDE_ATRACE_END("dim layer blend setup mixer");
+			}
 			clear_bit(SDE_CRTC_DIRTY_DIM_LAYERS, cstate->dirty);
 		}
 	}
@@ -2283,6 +2318,13 @@ static void sde_crtc_frame_event_cb(void *data, u32 event)
 	kthread_queue_work(&priv->event_thread[crtc_id].worker, &fevent->work);
 }
 
+static void _sde_crtc_mi_update_state(struct sde_crtc_state *cstate, enum mi_dimlayer_type dimlayer_state)
+{
+	int i = 0;
+	for (i = 0; i < cstate->num_connectors; i++)
+		sde_connector_mi_update_dimlayer_state(cstate->connectors[i], dimlayer_state);
+}
+
 void sde_crtc_prepare_commit(struct drm_crtc *crtc,
 		struct drm_crtc_state *old_state)
 {
@@ -2565,6 +2607,47 @@ void sde_crtc_complete_commit(struct drm_crtc *crtc,
 	sde_core_perf_crtc_update(crtc, 0, false);
 }
 
+void set_fod_dimlayer_status(struct drm_connector *connector, bool enabled)
+{
+	struct dsi_display *dsi_display = get_primary_display();
+
+	if (!connector || !dsi_display || !dsi_display->panel) {
+		SDE_ERROR("invalid param\n");
+		return;
+	}
+
+	dsi_display->panel->fod_dimlayer_enabled = enabled;
+
+	return;
+}
+EXPORT_SYMBOL(set_fod_dimlayer_status);
+
+bool get_fod_dimlayer_status(struct drm_connector *connector)
+{
+	struct dsi_display *dsi_display = get_primary_display();
+
+	if (!connector || !dsi_display || !dsi_display->panel) {
+		SDE_ERROR("invalid param\n");
+		return false;
+	}
+
+	return dsi_display->panel->fod_dimlayer_enabled;
+}
+EXPORT_SYMBOL(get_fod_dimlayer_status);
+
+ssize_t get_fod_ui_status(struct drm_connector *connector)
+{
+	struct dsi_display *dsi_display = get_primary_display();
+
+	if (!connector || !dsi_display || !dsi_display->panel) {
+			SDE_ERROR("invalid param\n");
+			return false;
+	}
+
+	return dsi_display->panel->fod_ui_ready;
+}
+EXPORT_SYMBOL(get_fod_ui_status);
+
 /**
  * _sde_crtc_set_input_fence_timeout - update ns version of in fence timeout
  * @cstate: Pointer to sde crtc state
@@ -2674,6 +2757,66 @@ static void _sde_crtc_set_dim_layer_v1(struct drm_crtc *crtc,
 	}
 clear:
 	set_bit(SDE_CRTC_DIRTY_DIM_LAYERS, cstate->dirty);
+}
+
+ssize_t xm_fod_dim_layer_alpha_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	int rc;
+	unsigned long alpha;
+
+	rc = kstrtoul(buf, 0, &alpha);
+	dim_layer_alpha = alpha;
+	return rc ? rc : count;
+}
+
+static int sde_crtc_config_fingerprint_dim_layer(struct drm_crtc_state *crtc_state, int stage)
+{
+	struct sde_crtc_state *cstate;
+	struct drm_display_mode *mode = &crtc_state->adjusted_mode;
+	struct sde_hw_dim_layer *fingerprint_dim_layer;
+	int alpha = dim_layer_alpha;
+	struct sde_kms *kms;
+
+	kms = _sde_crtc_get_kms(crtc_state->crtc);
+	if (!kms || !kms->catalog) {
+		SDE_ERROR("invalid kms\n");
+		return -EINVAL;
+	}
+
+	cstate = to_sde_crtc_state(crtc_state);
+
+	if (cstate->num_dim_layers == SDE_MAX_DIM_LAYERS - 1) {
+		pr_err("failed to get available dim layer for custom\n");
+		return -EINVAL;
+	}
+
+	if (!alpha) {
+		cstate->fingerprint_dim_layer = NULL;
+		return 0;
+	}
+
+	if ((stage + SDE_STAGE_0) >= kms->catalog->mixer[0].sblk->maxblendstages) {
+		pr_debug("stage too large! stage + SDE_STAGE_0:%d maxblendstages:%d\n",
+			stage + SDE_STAGE_0, kms->catalog->mixer[0].sblk->maxblendstages);
+		return -EINVAL;
+	}
+
+	SDE_ATRACE_BEGIN("set_dim_layer");
+	fingerprint_dim_layer = &cstate->dim_layer[cstate->num_dim_layers];
+	fingerprint_dim_layer->flags = SDE_DRM_DIM_LAYER_INCLUSIVE;
+	fingerprint_dim_layer->stage = stage + SDE_STAGE_0;
+
+	fingerprint_dim_layer->rect.x = 0;
+	fingerprint_dim_layer->rect.y = 0;
+	fingerprint_dim_layer->rect.w = mode->hdisplay;
+	fingerprint_dim_layer->rect.h = mode->vdisplay;
+	fingerprint_dim_layer->color_fill = (struct sde_mdss_color) {0, 0, 0, alpha};
+	cstate->fingerprint_dim_layer = fingerprint_dim_layer;
+	SDE_ATRACE_END("set_dim_layer");
+
+	return 0;
 }
 
 /**
@@ -3264,8 +3407,10 @@ static void sde_crtc_atomic_begin(struct drm_crtc *crtc,
 	struct drm_device *dev;
 	struct sde_kms *sde_kms;
 	struct sde_splash_display *splash_display;
+	struct sde_crtc_state *cstate;
 	bool cont_splash_enabled = false, apply_cp_prop = false;
 	size_t i;
+	int idle_time = 0;
 
 	if (!crtc) {
 		SDE_ERROR("invalid crtc\n");
@@ -3322,12 +3467,15 @@ static void sde_crtc_atomic_begin(struct drm_crtc *crtc,
 
 	_sde_crtc_blend_setup(crtc, old_state, true);
 	_sde_crtc_dest_scaler_setup(crtc);
+	cstate = to_sde_crtc_state(crtc->state);
+	idle_time = sde_crtc_get_property(cstate, CRTC_PROP_IDLE_TIMEOUT);
 
 	 /* cancel the idle notify delayed work */
 	if (sde_encoder_check_curr_mode(sde_crtc->mixers[0].encoder,
-				MSM_DISPLAY_VIDEO_MODE) &&
-		kthread_cancel_delayed_work_sync(&sde_crtc->idle_notify_work))
+				MSM_DISPLAY_VIDEO_MODE) && idle_time) {
+		kthread_cancel_delayed_work_sync(&sde_crtc->idle_notify_work);
 		SDE_DEBUG("idle notify work cancelled\n");
+	}
 
 	if (crtc->state->mode_changed || sde_kms->perf.catalog->uidle_cfg.dirty)
 		sde_core_perf_crtc_update_uidle(crtc, true);
@@ -3731,6 +3879,7 @@ void sde_crtc_commit_kickoff(struct drm_crtc *crtc,
 	unsigned long flags;
 	enum sde_crtc_idle_pc_state idle_pc_state;
 	struct sde_encoder_kickoff_params params = { 0 };
+	uint32_t fod_sync_info;
 
 	if (!crtc) {
 		SDE_ERROR("invalid argument\n");
@@ -3760,6 +3909,10 @@ void sde_crtc_commit_kickoff(struct drm_crtc *crtc,
 	idle_pc_state = sde_crtc_get_property(cstate, CRTC_PROP_IDLE_PC_STATE);
 
 	sde_crtc->kickoff_in_progress = true;
+
+	fod_sync_info = sde_crtc_get_mi_fod_sync_info(cstate);
+	_sde_crtc_mi_update_state(cstate, fod_sync_info);
+
 	list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
 		if (encoder->crtc != crtc)
 			continue;
@@ -4890,6 +5043,68 @@ static int _sde_crtc_check_zpos(struct drm_crtc_state *state,
 	return rc;
 }
 
+static int sde_crtc_fod_atomic_check(struct sde_crtc_state *cstate,
+		struct plane_state *pstates, int cnt)
+{
+	int fod_property_value;
+	int fod_icon_plane_idx = -1;
+	int fod_press_plane_idx = -1;
+	int plane_idx = 0;
+	int rc = 0;
+	int dim_layer_zpos = INT_MAX;
+	struct dsi_display *dsi_display = get_primary_display();
+
+	if (dsi_display == NULL || dsi_display->panel == NULL) {
+		SDE_ERROR("dsi display panel is null\n");
+		return 0;
+	}
+
+	return 0;
+
+	if (!dsi_display->panel->fod_dimlayer_enabled) {
+		cstate->dim_layer_status = false;
+		cstate->fingerprint_dim_layer = NULL;
+		cstate->finger_down = false;
+		pr_debug("Disable dim layer as virtual display detected\n");
+		return 0;
+	}
+
+	for (plane_idx = 0; plane_idx < cnt; plane_idx++) {
+		fod_property_value = sde_plane_check_fod_layer(pstates[plane_idx].drm_pstate);
+		if (fod_property_value == 1) {
+			fod_icon_plane_idx = plane_idx;
+		} else if (fod_property_value == 2) {
+			fod_press_plane_idx = plane_idx;
+		}
+	}
+
+	if (fod_icon_plane_idx >= 0 || fod_press_plane_idx >= 0) {
+		cstate->dim_layer_status = true;
+		if (dim_layer_zpos > pstates[fod_icon_plane_idx].stage + 1)
+			dim_layer_zpos = pstates[fod_icon_plane_idx].stage + 1;
+
+		for (plane_idx = 0; plane_idx < cnt; plane_idx++) {
+			if (pstates[plane_idx].stage >= dim_layer_zpos)
+				pstates[plane_idx].stage++;
+		}
+		rc = sde_crtc_config_fingerprint_dim_layer(&cstate->base, dim_layer_zpos);
+		if (rc) {
+			SDE_ERROR("Failed to config fod dim layer");
+			return -EINVAL;
+		}
+		if (fod_press_plane_idx >= 0)
+			cstate->finger_down = true;
+		else {
+			cstate->finger_down = false;
+		}
+	} else {
+		cstate->dim_layer_status = false;
+		cstate->fingerprint_dim_layer = NULL;
+		cstate->finger_down = false;
+	}
+	return 0;
+}
+
 static int _sde_crtc_atomic_check_pstates(struct drm_crtc *crtc,
 		struct drm_crtc_state *state,
 		struct plane_state *pstates,
@@ -4919,6 +5134,14 @@ static int _sde_crtc_atomic_check_pstates(struct drm_crtc *crtc,
 	if (rc)
 		return rc;
 
+	/*
+	 * mi layer check
+	 * need execute only sde_enc->disp_info.is_primary is true
+	 */
+	rc = sde_crtc_fod_atomic_check(cstate, pstates, cnt);
+	if (rc)
+		return rc;
+	
 	/* assign mixer stages based on sorted zpos property */
 	rc = _sde_crtc_check_zpos(state, sde_crtc, pstates, cstate, mode, cnt);
 	if (rc)
@@ -4995,6 +5218,17 @@ static int _sde_crtc_check_plane_layout(struct drm_crtc *crtc,
 	}
 
 	return 0;
+}
+
+bool sde_crtc_get_dim_layer_status(struct drm_crtc_state *crtc_state)
+{
+	struct sde_crtc_state *cstate;
+
+	if (!crtc_state)
+		return false;
+
+	cstate = to_sde_crtc_state(crtc_state);
+	return !!cstate->dim_layer_status;
 }
 
 static int sde_crtc_atomic_check(struct drm_crtc *crtc,
@@ -5428,6 +5662,11 @@ static void sde_crtc_install_properties(struct drm_crtc *crtc,
 	}
 
 	sde_crtc_setup_capabilities_blob(info, catalog);
+
+	/* mi properties */
+	msm_property_install_range(&sde_crtc->property_info,
+		"mi_fod_sync_info", 0x0, 0,
+		U32_MAX, 0, CRCT_PROP_MI_FOD_SYNC_INFO);
 
 	msm_property_install_range(&sde_crtc->property_info,
 		"input_fence_timeout", 0x0, 0,
@@ -6968,6 +7207,14 @@ static int sde_crtc_idle_interrupt_handler(struct drm_crtc *crtc_drm,
 	bool en, struct sde_irq_callback *irq)
 {
 	return 0;
+}
+
+uint32_t sde_crtc_get_mi_fod_sync_info(struct sde_crtc_state *cstate)
+{
+	if (!cstate)
+		return 0;
+
+	return sde_crtc_get_property(cstate, CRCT_PROP_MI_FOD_SYNC_INFO);
 }
 
 /**

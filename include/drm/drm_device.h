@@ -25,6 +25,15 @@ struct inode;
 struct pci_dev;
 struct pci_controller;
 
+/**
+ * AOD brightness, high brightness level 60nit, low brightness level 5nit.
+ */
+#define DOZE_MIN_BRIGHTNESS_LEVEL	5
+enum {
+	DOZE_BRIGHTNESS_INVALID = 0,
+	DOZE_BRIGHTNESS_HBM,
+	DOZE_BRIGHTNESS_LBM,
+};
 
 /**
  * enum drm_switch_power - power state of drm device
@@ -299,6 +308,9 @@ struct drm_device {
 	 * &vga_switcheroo_client_ops.set_gpu_state callback
 	 */
 	enum switch_power_state switch_power_state;
+
+	int doze_state;
+	int doze_brightness;
 
 	/**
 	 * @fb_helper:
