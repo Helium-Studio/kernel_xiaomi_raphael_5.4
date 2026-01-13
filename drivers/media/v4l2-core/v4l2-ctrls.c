@@ -6,8 +6,6 @@
 
  */
 
-#define pr_fmt(fmt) "v4l2-ctrls: " fmt
-
 #include <linux/ctype.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
@@ -17,12 +15,6 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-event.h>
 #include <media/v4l2-dev.h>
-
-#define dprintk(vdev, fmt, arg...) do {					\
-	if (!WARN_ON(!(vdev)) && ((vdev)->dev_debug & V4L2_DEV_DEBUG_CTRL)) \
-		printk(KERN_DEBUG pr_fmt("%s: %s: " fmt),		\
-		       __func__, video_device_node_name(vdev), ##arg);	\
-} while (0)
 
 #define has_op(master, op) \
 	(master->ops && master->ops->op)
@@ -3311,7 +3303,6 @@ static int v4l2_ctrl_request_bind(struct media_request *req,
 static int prepare_ext_ctrls(struct v4l2_ctrl_handler *hdl,
 			     struct v4l2_ext_controls *cs,
 			     struct v4l2_ctrl_helper *helpers,
-			     struct video_device *vdev,
 			     bool get)
 {
 	struct v4l2_ctrl_helper *h;
@@ -3329,31 +3320,20 @@ static int prepare_ext_ctrls(struct v4l2_ctrl_handler *hdl,
 		if (cs->which &&
 		    cs->which != V4L2_CTRL_WHICH_DEF_VAL &&
 		    cs->which != V4L2_CTRL_WHICH_REQUEST_VAL &&
-		    V4L2_CTRL_ID2WHICH(id) != cs->which) {
-			dprintk(vdev,
-				"invalid which 0x%x or control id 0x%x\n",
-				cs->which, id);
+		    V4L2_CTRL_ID2WHICH(id) != cs->which)
 			return -EINVAL;
-		}
 
 		/* Old-style private controls are not allowed for
 		   extended controls */
-		if (id >= V4L2_CID_PRIVATE_BASE) {
-			dprintk(vdev,
-				"old-style private controls not allowed\n");
+		if (id >= V4L2_CID_PRIVATE_BASE)
 			return -EINVAL;
-		}
 		ref = find_ref_lock(hdl, id);
-		if (ref == NULL) {
-			dprintk(vdev, "cannot find control id 0x%x\n", id);
+		if (ref == NULL)
 			return -EINVAL;
-		}
 		h->ref = ref;
 		ctrl = ref->ctrl;
-		if (ctrl->flags & V4L2_CTRL_FLAG_DISABLED) {
-			dprintk(vdev, "control id 0x%x is disabled\n", id);
+		if (ctrl->flags & V4L2_CTRL_FLAG_DISABLED)
 			return -EINVAL;
-		}
 
 		if (ctrl->cluster[0]->ncontrols > 1)
 			have_clusters = true;
@@ -3363,17 +3343,10 @@ static int prepare_ext_ctrls(struct v4l2_ctrl_handler *hdl,
 			unsigned tot_size = ctrl->elems * ctrl->elem_size;
 
 			if (c->size < tot_size) {
-				/*
-				 * In the get case the application first
-				 * queries to obtain the size of the control.
-				 */
 				if (get) {
 					c->size = tot_size;
 					return -ENOSPC;
 				}
-				dprintk(vdev,
-					"pointer control id 0x%x size too small, %d bytes but %d bytes needed\n",
-					id, c->size, tot_size);
 				return -EFAULT;
 			}
 			c->size = tot_size;
@@ -3434,8 +3407,7 @@ static int class_check(struct v4l2_ctrl_handler *hdl, u32 which)
 
 /* Get extended controls. Allocates the helpers array if needed. */
 static int v4l2_g_ext_ctrls_common(struct v4l2_ctrl_handler *hdl,
-				   struct v4l2_ext_controls *cs,
-				   struct video_device *vdev)
+				   struct v4l2_ext_controls *cs)
 {
 	struct v4l2_ctrl_helper helper[4];
 	struct v4l2_ctrl_helper *helpers = helper;
@@ -3461,7 +3433,7 @@ static int v4l2_g_ext_ctrls_common(struct v4l2_ctrl_handler *hdl,
 			return -ENOMEM;
 	}
 
-	ret = prepare_ext_ctrls(hdl, cs, helpers, vdev, true);
+	ret = prepare_ext_ctrls(hdl, cs, helpers, true);
 	cs->error_idx = cs->count;
 
 	for (i = 0; !ret && i < cs->count; i++)
@@ -3565,8 +3537,8 @@ v4l2_ctrls_find_req_obj(struct v4l2_ctrl_handler *hdl,
 	return obj;
 }
 
-int v4l2_g_ext_ctrls(struct v4l2_ctrl_handler *hdl, struct video_device *vdev,
-		     struct media_device *mdev, struct v4l2_ext_controls *cs)
+int v4l2_g_ext_ctrls(struct v4l2_ctrl_handler *hdl, struct media_device *mdev,
+		     struct v4l2_ext_controls *cs)
 {
 	struct media_request_object *obj = NULL;
 	struct media_request *req = NULL;
@@ -3602,7 +3574,7 @@ int v4l2_g_ext_ctrls(struct v4l2_ctrl_handler *hdl, struct video_device *vdev,
 				   req_obj);
 	}
 
-	ret = v4l2_g_ext_ctrls_common(hdl, cs, vdev);
+	ret = v4l2_g_ext_ctrls_common(hdl, cs);
 
 	if (obj) {
 		media_request_unlock_for_access(req);
@@ -3745,9 +3717,7 @@ static int try_or_set_cluster(struct v4l2_fh *fh, struct v4l2_ctrl *master,
 
 /* Validate controls. */
 static int validate_ctrls(struct v4l2_ext_controls *cs,
-			  struct v4l2_ctrl_helper *helpers,
-			  struct video_device *vdev,
-			  bool set)
+			  struct v4l2_ctrl_helper *helpers, bool set)
 {
 	unsigned i;
 	int ret = 0;
@@ -3759,24 +3729,16 @@ static int validate_ctrls(struct v4l2_ext_controls *cs,
 
 		cs->error_idx = i;
 
-		if (ctrl->flags & V4L2_CTRL_FLAG_READ_ONLY) {
-			dprintk(vdev,
-				"control id 0x%x is read-only\n",
-				ctrl->id);
+		if (ctrl->flags & V4L2_CTRL_FLAG_READ_ONLY)
 			return -EACCES;
-		}
 		/* This test is also done in try_set_control_cluster() which
 		   is called in atomic context, so that has the final say,
 		   but it makes sense to do an up-front check as well. Once
 		   an error occurs in try_set_control_cluster() some other
 		   controls may have been set already and we want to do a
 		   best-effort to avoid that. */
-		if (set && (ctrl->flags & V4L2_CTRL_FLAG_GRABBED)) {
-			dprintk(vdev,
-				"control id 0x%x is grabbed, cannot set\n",
-				ctrl->id);
+		if (set && (ctrl->flags & V4L2_CTRL_FLAG_GRABBED))
 			return -EBUSY;
-		}
 		/*
 		 * Skip validation for now if the payload needs to be copied
 		 * from userspace into kernelspace. We'll validate those later.
@@ -3811,8 +3773,7 @@ static void update_from_auto_cluster(struct v4l2_ctrl *master)
 /* Try or try-and-set controls */
 static int try_set_ext_ctrls_common(struct v4l2_fh *fh,
 				    struct v4l2_ctrl_handler *hdl,
-				    struct v4l2_ext_controls *cs,
-				    struct video_device *vdev, bool set)
+				    struct v4l2_ext_controls *cs, bool set)
 {
 	struct v4l2_ctrl_helper helper[4];
 	struct v4l2_ctrl_helper *helpers = helper;
@@ -3822,19 +3783,13 @@ static int try_set_ext_ctrls_common(struct v4l2_fh *fh,
 	cs->error_idx = cs->count;
 
 	/* Default value cannot be changed */
-	if (cs->which == V4L2_CTRL_WHICH_DEF_VAL) {
-		dprintk(vdev, "%s: cannot change default value\n",
-			video_device_node_name(vdev));
+	if (cs->which == V4L2_CTRL_WHICH_DEF_VAL)
 		return -EINVAL;
-	}
 
 	cs->which = V4L2_CTRL_ID2WHICH(cs->which);
 
-	if (hdl == NULL) {
-		dprintk(vdev, "%s: invalid null control handler\n",
-			video_device_node_name(vdev));
+	if (hdl == NULL)
 		return -EINVAL;
-	}
 
 	if (cs->count == 0)
 		return class_check(hdl, cs->which);
@@ -3845,9 +3800,9 @@ static int try_set_ext_ctrls_common(struct v4l2_fh *fh,
 		if (!helpers)
 			return -ENOMEM;
 	}
-	ret = prepare_ext_ctrls(hdl, cs, helpers, vdev, false);
+	ret = prepare_ext_ctrls(hdl, cs, helpers, false);
 	if (!ret)
-		ret = validate_ctrls(cs, helpers, vdev, set);
+		ret = validate_ctrls(cs, helpers, set);
 	if (ret && set)
 		cs->error_idx = cs->count;
 	for (i = 0; !ret && i < cs->count; i++) {
@@ -3932,9 +3887,7 @@ static int try_set_ext_ctrls_common(struct v4l2_fh *fh,
 }
 
 static int try_set_ext_ctrls(struct v4l2_fh *fh,
-			     struct v4l2_ctrl_handler *hdl,
-			     struct video_device *vdev,
-			     struct media_device *mdev,
+			     struct v4l2_ctrl_handler *hdl, struct media_device *mdev,
 			     struct v4l2_ext_controls *cs, bool set)
 {
 	struct media_request_object *obj = NULL;
@@ -3942,39 +3895,21 @@ static int try_set_ext_ctrls(struct v4l2_fh *fh,
 	int ret;
 
 	if (cs->which == V4L2_CTRL_WHICH_REQUEST_VAL) {
-		if (!mdev) {
-			dprintk(vdev, "%s: missing media device\n",
-				video_device_node_name(vdev));
+		if (!mdev || cs->request_fd < 0)
 			return -EINVAL;
-		}
-
-		if (cs->request_fd < 0) {
-			dprintk(vdev, "%s: invalid request fd %d\n",
-				video_device_node_name(vdev), cs->request_fd);
-			return -EINVAL;
-		}
 
 		req = media_request_get_by_fd(mdev, cs->request_fd);
-		if (IS_ERR(req)) {
-			dprintk(vdev, "%s: cannot find request fd %d\n",
-				video_device_node_name(vdev), cs->request_fd);
+		if (IS_ERR(req))
 			return PTR_ERR(req);
-		}
 
 		ret = media_request_lock_for_update(req);
 		if (ret) {
-			dprintk(vdev, "%s: cannot lock request fd %d\n",
-				video_device_node_name(vdev), cs->request_fd);
 			media_request_put(req);
 			return ret;
 		}
 
 		obj = v4l2_ctrls_find_req_obj(hdl, req, set);
 		if (IS_ERR(obj)) {
-			dprintk(vdev,
-				"%s: cannot find request object for request fd %d\n",
-				video_device_node_name(vdev),
-				cs->request_fd);
 			media_request_unlock_for_update(req);
 			media_request_put(req);
 			return PTR_ERR(obj);
@@ -3983,11 +3918,7 @@ static int try_set_ext_ctrls(struct v4l2_fh *fh,
 				   req_obj);
 	}
 
-	ret = try_set_ext_ctrls_common(fh, hdl, cs, vdev, set);
-	if (ret)
-		dprintk(vdev,
-			"%s: try_set_ext_ctrls_common failed (%d)\n",
-			video_device_node_name(vdev), ret);
+	ret = try_set_ext_ctrls_common(fh, hdl, cs, set);
 
 	if (obj) {
 		media_request_unlock_for_update(req);
@@ -3998,22 +3929,17 @@ static int try_set_ext_ctrls(struct v4l2_fh *fh,
 	return ret;
 }
 
-int v4l2_try_ext_ctrls(struct v4l2_ctrl_handler *hdl,
-		       struct video_device *vdev,
-		       struct media_device *mdev,
+int v4l2_try_ext_ctrls(struct v4l2_ctrl_handler *hdl, struct media_device *mdev,
 		       struct v4l2_ext_controls *cs)
 {
-	return try_set_ext_ctrls(NULL, hdl, vdev, mdev, cs, false);
+	return try_set_ext_ctrls(NULL, hdl, mdev, cs, false);
 }
 EXPORT_SYMBOL(v4l2_try_ext_ctrls);
 
-int v4l2_s_ext_ctrls(struct v4l2_fh *fh,
-		     struct v4l2_ctrl_handler *hdl,
-		     struct video_device *vdev,
-		     struct media_device *mdev,
-		     struct v4l2_ext_controls *cs)
+int v4l2_s_ext_ctrls(struct v4l2_fh *fh, struct v4l2_ctrl_handler *hdl,
+		     struct media_device *mdev, struct v4l2_ext_controls *cs)
 {
-	return try_set_ext_ctrls(fh, hdl, vdev, mdev, cs, true);
+	return try_set_ext_ctrls(fh, hdl, mdev, cs, true);
 }
 EXPORT_SYMBOL(v4l2_s_ext_ctrls);
 
