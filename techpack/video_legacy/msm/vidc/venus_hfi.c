@@ -29,7 +29,7 @@
 #include <linux/platform_device.h>
 #include <linux/soc/qcom/llcc-qcom.h>
 #include <soc/qcom/cx_ipeak.h>
-#include <soc/qcom/scm.h>
+#include <linux/qcom_scm.h>
 #include <soc/qcom/socinfo.h>
 #include <linux/soc/qcom/smem.h>
 #include <soc/qcom/subsystem_restart.h>
@@ -50,19 +50,12 @@
 
 static struct hal_device_data hal_ctxt;
 
-#define TZBSP_MEM_PROTECT_VIDEO_VAR 0x8
 struct tzbsp_memprot {
 	u32 cp_start;
 	u32 cp_size;
 	u32 cp_nonpixel_start;
 	u32 cp_nonpixel_size;
 };
-
-struct tzbsp_resp {
-	int ret;
-};
-
-#define TZBSP_VIDEO_SET_STATE 0xa
 
 /* Poll interval in uS */
 #define POLL_INTERVAL_US 50
@@ -71,11 +64,6 @@ enum tzbsp_video_state {
 	TZBSP_VIDEO_STATE_SUSPEND = 0,
 	TZBSP_VIDEO_STATE_RESUME = 1,
 	TZBSP_VIDEO_STATE_RESTORE_THRESHOLD = 2,
-};
-
-struct tzbsp_video_set_state_req {
-	u32 state; /* should be tzbsp_video_state enum value */
-	u32 spare; /* reserved for future, should be zero */
 };
 
 const struct msm_vidc_gov_data DEFAULT_BUS_VOTE = {
@@ -1156,23 +1144,7 @@ err_create_pkt:
 
 static int __tzbsp_set_video_state(enum tzbsp_video_state state)
 {
-	struct tzbsp_video_set_state_req cmd = {0};
-	int tzbsp_rsp = 0;
-	int rc = 0;
-	struct scm_desc desc = {0};
-
-	desc.args[0] = cmd.state = state;
-	desc.args[1] = cmd.spare = 0;
-	desc.arginfo = SCM_ARGS(2);
-
-	rc = scm_call2(SCM_SIP_FNID(SCM_SVC_BOOT,
-			TZBSP_VIDEO_SET_STATE), &desc);
-	tzbsp_rsp = desc.ret[0];
-
-	if (rc) {
-		dprintk(VIDC_ERR, "Failed scm_call %d\n", rc);
-		return rc;
-	}
+	int tzbsp_rsp = qcom_scm_set_remote_state(state, 0);
 
 	dprintk(VIDC_DBG, "Set state %d, resp %d\n", state, tzbsp_rsp);
 	if (tzbsp_rsp) {
@@ -4220,10 +4192,8 @@ static void __deinit_resources(struct venus_hfi_device *device)
 static int __protect_cp_mem(struct venus_hfi_device *device)
 {
 	struct tzbsp_memprot memprot;
-	unsigned int resp = 0;
 	int rc = 0;
 	struct context_bank_info *cb;
-	struct scm_desc desc = {0};
 
 	if (!device)
 		return -EINVAL;
@@ -4235,17 +4205,14 @@ static int __protect_cp_mem(struct venus_hfi_device *device)
 
 	list_for_each_entry(cb, &device->res->context_banks, list) {
 		if (!strcmp(cb->name, "venus_ns")) {
-			desc.args[1] = memprot.cp_size =
-				cb->addr_range.start;
+			memprot.cp_size = cb->addr_range.start;
 			dprintk(VIDC_DBG, "%s memprot.cp_size: %#x\n",
 				__func__, memprot.cp_size);
 		}
 
 		if (!strcmp(cb->name, "venus_sec_non_pixel")) {
-			desc.args[2] = memprot.cp_nonpixel_start =
-				cb->addr_range.start;
-			desc.args[3] = memprot.cp_nonpixel_size =
-				cb->addr_range.size;
+			memprot.cp_nonpixel_start = cb->addr_range.start;
+			memprot.cp_nonpixel_size = cb->addr_range.size;
 			dprintk(VIDC_DBG,
 				"%s memprot.cp_nonpixel_start: %#x size: %#x\n",
 				__func__, memprot.cp_nonpixel_start,
@@ -4253,15 +4220,10 @@ static int __protect_cp_mem(struct venus_hfi_device *device)
 		}
 	}
 
-	desc.arginfo = SCM_ARGS(4);
-	rc = scm_call2(SCM_SIP_FNID(SCM_SVC_MP,
-			   TZBSP_MEM_PROTECT_VIDEO_VAR), &desc);
-	resp = desc.ret[0];
-
-	if (rc) {
-		dprintk(VIDC_ERR, "Failed to protect memory(%d) response: %d\n",
-				rc, resp);
-	}
+	rc = qcom_scm_mem_protect_video(memprot.cp_start, memprot.cp_size,
+			memprot.cp_nonpixel_start, memprot.cp_nonpixel_size);
+	if (rc)
+		dprintk(VIDC_ERR, "Failed to protect memory(%d)\n", rc);
 
 	trace_venus_hfi_var_done(
 		memprot.cp_start, memprot.cp_size,
