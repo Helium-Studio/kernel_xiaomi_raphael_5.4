@@ -1388,7 +1388,7 @@ int msm_vdec_s_ext_ctrl(struct msm_vidc_inst *inst,
 
 	hdev = inst->core->device;
 
-	v4l2_try_ext_ctrls(&inst->ctrl_handler, ctrl);
+	v4l2_try_ext_ctrls(&inst->ctrl_handler, NULL, ctrl);
 
 	ext_control = ctrl->controls;
 

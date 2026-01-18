@@ -18,6 +18,7 @@
 #include <linux/videodev2.h>
 #include <linux/types.h>
 #include <linux/msm_ion.h>
+#include <media/media-device.h>
 #include <vidc_legacy/media/msm_vidc_private.h>
 #include <vidc_legacy/media/msm_vidc_utils.h>
 
@@ -116,7 +117,8 @@ int msm_vidc_g_ctrl(void *instance, struct v4l2_control *a);
 int msm_vidc_reqbufs(void *instance, struct v4l2_requestbuffers *b);
 int msm_vidc_release_buffer(void *instance, int buffer_type,
 		unsigned int buffer_index);
-int msm_vidc_qbuf(void *instance, struct v4l2_buffer *b);
+int msm_vidc_qbuf(void *instance, struct media_device *mdev,
+		struct v4l2_buffer *b);
 int msm_vidc_dqbuf(void *instance, struct v4l2_buffer *b);
 int msm_vidc_streamon(void *instance, enum v4l2_buf_type i);
 int msm_vidc_query_ctrl(void *instance, struct v4l2_queryctrl *ctrl);
@@ -129,7 +131,7 @@ int msm_vidc_subscribe_event(void *instance,
 int msm_vidc_unsubscribe_event(void *instance,
 		const struct v4l2_event_subscription *sub);
 int msm_vidc_dqevent(void *instance, struct v4l2_event *event);
-int msm_vidc_g_crop(void *instance, struct v4l2_crop *a);
+int msm_vidc_g_crop(void *instance, struct v4l2_selection *s);
 int msm_vidc_enum_framesizes(void *instance, struct v4l2_frmsizeenum *fsize);
 int msm_vidc_private(void *vidc_inst, unsigned int cmd,
 		struct msm_vidc_arg *arg);

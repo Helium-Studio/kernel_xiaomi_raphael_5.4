@@ -11,7 +11,7 @@
  *
  */
 
-#include <asm/dma-iommu.h>
+#include <linux/dma-iommu.h>
 #include <linux/iommu.h>
 #include <linux/of.h>
 #include <linux/slab.h>
@@ -782,9 +782,6 @@ int read_platform_resources_from_drv_data(
 
 	res->debug_timeout = find_key_value(platform_data,
 			"qcom,debug-timeout");
-
-	res->pm_qos_latency_us = find_key_value(platform_data,
-			"qcom,pm-qos-latency-us");
 
 	res->max_secure_inst_count = find_key_value(platform_data,
 			"qcom,max-secure-instances");

@@ -13,7 +13,6 @@
 
 #include <linux/dma-direction.h>
 #include <linux/sched.h>
-#include <linux/slab.h>
 #include "msm_vidc.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_debug.h"
@@ -339,11 +338,11 @@ int msm_vidc_s_ctrl(void *instance, struct v4l2_control *control)
 }
 EXPORT_SYMBOL(msm_vidc_s_ctrl);
 
-int msm_vidc_g_crop(void *instance, struct v4l2_crop *crop)
+int msm_vidc_g_crop(void *instance, struct v4l2_selection *s)
 {
 	struct msm_vidc_inst *inst = instance;
 
-	if (!inst || !crop)
+	if (!inst || (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE))
 		return -EINVAL;
 
 	if (inst->session_type == MSM_VIDC_ENCODER) {
@@ -353,10 +352,19 @@ int msm_vidc_g_crop(void *instance, struct v4l2_crop *crop)
 		return -EPERM;
 	}
 
-	crop->c.left = inst->prop.crop_info.left;
-	crop->c.top = inst->prop.crop_info.top;
-	crop->c.width = inst->prop.crop_info.width;
-	crop->c.height = inst->prop.crop_info.height;
+	switch (s->target) {
+	case V4L2_SEL_TGT_CROP:
+	case V4L2_SEL_TGT_COMPOSE:
+	case V4L2_SEL_TGT_COMPOSE_DEFAULT:
+	case V4L2_SEL_TGT_COMPOSE_BOUNDS:
+		s->r.left = inst->prop.crop_info.left;
+		s->r.top = inst->prop.crop_info.top;
+		s->r.width = inst->prop.crop_info.width;
+		s->r.height = inst->prop.crop_info.height;
+		break;
+	default:
+		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -507,7 +515,8 @@ int msm_vidc_release_buffer(void *instance, int type, unsigned int index)
 }
 EXPORT_SYMBOL(msm_vidc_release_buffer);
 
-int msm_vidc_qbuf(void *instance, struct v4l2_buffer *b)
+int msm_vidc_qbuf(void *instance, struct media_device *mdev,
+		struct v4l2_buffer *b)
 {
 	struct msm_vidc_inst *inst = instance;
 	int rc = 0, i = 0;
@@ -566,7 +575,7 @@ int msm_vidc_qbuf(void *instance, struct v4l2_buffer *b)
 	tag_data.output_tag = b->m.planes[0].reserved[6];
 	msm_comm_store_tags(inst, &tag_data);
 
-	rc = vb2_qbuf(&q->vb2_bufq, b);
+	rc = vb2_qbuf(&q->vb2_bufq, mdev, b);
 	if (rc)
 		dprintk(VIDC_ERR, "Failed to qbuf, %d\n", rc);
 
@@ -1005,7 +1014,7 @@ int msm_vidc_set_internal_config(struct msm_vidc_inst *inst)
 			slice_mode = V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE;
 			slice_val = 0;
 		} else if (slice_mode ==
-				    V4L2_MPEG_VIDEO_MULTI_SICE_MODE_MAX_MB) {
+				    V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_MB) {
 			if (output_width > 3840 || output_height > 3840 ||
 				mb_per_frame > NUM_MBS_PER_FRAME(3840, 2160) ||
 				fps > 60) {

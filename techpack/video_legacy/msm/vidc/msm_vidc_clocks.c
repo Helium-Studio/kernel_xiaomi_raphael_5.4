@@ -1267,7 +1267,7 @@ int msm_vidc_decide_work_route(struct msm_vidc_inst *inst)
 		fps = inst->prop.fps;
 		mbps = NUM_MBS_PER_SEC(output_height, output_width, fps);
 		if (slice_mode ==
-			V4L2_MPEG_VIDEO_MULTI_SICE_MODE_MAX_BYTES ||
+			V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_BYTES ||
 			(rc_mode == V4L2_MPEG_VIDEO_BITRATE_MODE_CBR &&
 			mbps <= CBR_MB_LIMIT) ||
 			(rc_mode == V4L2_MPEG_VIDEO_BITRATE_MODE_CBR_VFR &&
