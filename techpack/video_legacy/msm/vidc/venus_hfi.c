@@ -986,22 +986,15 @@ static void __set_threshold_registers(struct venus_hfi_device *device)
 }
 
 static int __vote_bandwidth(struct bus_info *bus,
-		unsigned long *freq)
+		unsigned long bw_kbps)
 {
 	int rc = 0;
-	uint64_t ab = 0;
 
-	if (*freq)
-		*freq = clamp_t(typeof(*freq), *freq, bus->range[0],
-				bus->range[1]);
-
-	/* Bus Driver expects values in Bps */
-	ab = *freq * 1000;
-	dprintk(VIDC_PROF, "Voting bus %s to ab %llu\n", bus->name, ab);
-	rc = msm_bus_scale_update_bw(bus->client, ab, 0);
+	dprintk(VIDC_PROF, "Voting bus %s to ab %llu kbps\n", bus->name, bw_kbps);
+	rc = icc_set_bw(bus->path, bw_kbps, 0);
 	if (rc)
 		dprintk(VIDC_ERR, "Failed voting bus %s to ab %llu, rc=%d\n",
-				bus->name, ab, rc);
+				bus->name, bw_kbps, rc);
 
 	return rc;
 }
@@ -1010,22 +1003,23 @@ static int __unvote_buses(struct venus_hfi_device *device)
 {
 	int rc = 0;
 	struct bus_info *bus = NULL;
-	unsigned long freq = 0, zero = 0;
+	unsigned long bw_kbps = 0;
+	enum vidc_bus_type type;
 
 	kfree(device->bus_vote.data);
 	device->bus_vote.data = NULL;
 	device->bus_vote.data_count = 0;
 
 	venus_hfi_for_each_bus(device, bus) {
-		if (!bus->is_prfm_gov_used) {
-			freq = __calc_bw(bus, &device->bus_vote);
-			rc = __vote_bandwidth(bus, &freq);
+	type = get_type_frm_name(bus->name);
+		if (type != PERF) {
+			bw_kbps = __calc_bw(bus, &device->bus_vote);
+			rc = __vote_bandwidth(bus, bw_kbps);
+		} else {
+			rc = __vote_bandwidth(bus, 0);
+			if (rc)
+				goto err_unknown_device;
 		}
-		else
-			rc = __vote_bandwidth(bus, &zero);
-
-		if (rc)
-			goto err_unknown_device;
 	}
 
 err_unknown_device:
@@ -1039,6 +1033,7 @@ static int __vote_buses(struct venus_hfi_device *device,
 	struct bus_info *bus = NULL;
 	struct vidc_bus_vote_data *new_data = NULL;
 	unsigned long freq = 0;
+	enum vidc_bus_type type;
 
 	if (!num_data) {
 		dprintk(VIDC_DBG, "No vote data available\n");
@@ -1061,16 +1056,21 @@ no_data_count:
 	device->bus_vote.data_count = num_data;
 
 	venus_hfi_for_each_bus(device, bus) {
-		if (bus && bus->client) {
-			if (!bus->is_prfm_gov_used) {
+		if (bus && bus->path) {
+			type = get_type_frm_name(bus->name);
+			if (type != PERF) {
 				freq = __calc_bw(bus, &device->bus_vote);
 			} else {
 				freq = bus->range[1];
 				dprintk(VIDC_DBG, "%s %s perf Vote %u\n",
-						__func__, bus->name,
-						bus->range[1]);
+							__func__, bus->name,
+							bus->range[1]);
 			}
-			rc = __vote_bandwidth(bus, &freq);
+			/* ensure freq is within limits */
+			freq = clamp_t(typeof(freq), freq,
+				bus->range[0], bus->range[1]);
+
+			rc = __vote_bandwidth(bus, freq);
 		} else {
 			dprintk(VIDC_ERR, "No BUS to Vote\n");
 		}
@@ -4011,8 +4011,8 @@ static void __deinit_bus(struct venus_hfi_device *device)
 	device->bus_vote = DEFAULT_BUS_VOTE;
 
 	venus_hfi_for_each_bus_reverse(device, bus) {
-		msm_bus_scale_unregister(bus->client);
-		bus->client = NULL;
+		icc_put(bus->path);
+		bus->path = NULL;
 	}
 }
 
@@ -4025,21 +4025,21 @@ static int __init_bus(struct venus_hfi_device *device)
 		return -EINVAL;
 
 	venus_hfi_for_each_bus(device, bus) {
-		if (!strcmp(bus->mode, "msm-vidc-llcc")) {
+		if (!strcmp(bus->name, "venus-llcc")) {
 			if (msm_vidc_syscache_disable) {
 				dprintk(VIDC_DBG,
-					 "Skipping LLC bus init %s: %s\n",
-				bus->name, bus->mode);
+					 "Skipping LLC bus init: %s\n",
+					bus->name);
 				continue;
 			}
 		}
-		bus->client = msm_bus_scale_register(bus->master, bus->slave,
-				bus->name, false);
-		if (IS_ERR_OR_NULL(bus->client)) {
-			rc = PTR_ERR(bus->client) ?: -EBADHANDLE;
+		bus->path = of_icc_get(bus->dev, bus->name);
+		if (IS_ERR_OR_NULL(bus->path)) {
+			rc = PTR_ERR(bus->path) ?
+				PTR_ERR(bus->path) : -EBADHANDLE;
 			dprintk(VIDC_ERR, "Failed to register bus %s: %d\n",
 					bus->name, rc);
-			bus->client = NULL;
+			bus->path = NULL;
 			goto err_add_dev;
 		}
 	}
