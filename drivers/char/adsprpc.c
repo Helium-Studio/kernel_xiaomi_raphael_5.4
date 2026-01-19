@@ -65,6 +65,8 @@
 #define FASTRPC_MAP_DMA_HANDLE  0x20000
 
 #define FASTRPC_ENOSUCH 39
+#define VMID_SSC_Q6     5
+#define VMID_ADSP_Q6    6
 #define DEBUGFS_SIZE 3072
 #define PID_SIZE 10
 
@@ -1623,6 +1625,16 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd,
 		}
 
 		vmid = fl->apps->channel[cid].vmid;
+		if (!sess->smmu.enabled && !vmid) {
+			VERIFY(err, map->phys >= me->range.addr &&
+			map->phys + map->size <=
+			me->range.addr + me->range.size);
+			if (err) {
+				pr_err("adsprpc: %s: phys addr 0x%llx (size 0x%zx) out of CMA heap range\n",
+					__func__, map->phys, map->size);
+				goto bail;
+			}
+		}
 		if (vmid) {
 			int srcVM[1] = {VMID_HLOS};
 			int destVM[2] = {VMID_HLOS, vmid};
@@ -5569,6 +5581,10 @@ static ssize_t fastrpc_debugfs_read(struct file *filp, char __user *buffer,
 			DEBUGFS_SIZE - len, "--%s%s---\n",
 			single_line, single_line);
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
+			"0x%-18llX", me->range.addr);
+		len += scnprintf(fileinfo + len,
+			DEBUGFS_SIZE - len, "|0x%-18llX\n", me->range.size);
+		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"\n==========%s %s %s===========\n",
 			title, " GMAPS ", title);
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
@@ -6988,6 +7004,11 @@ static int fastrpc_probe(struct platform_device *pdev)
 	int err = 0;
 	struct fastrpc_apps *me = &gfa;
 	struct device *dev = &pdev->dev;
+	struct smq_phy_page range;
+	struct device_node *ion_node, *node;
+	struct platform_device *ion_pdev;
+	struct cma *cma;
+	uint32_t val;
 	int ret = 0;
 	uint32_t secure_domains = 0;
 
@@ -7028,6 +7049,43 @@ static int fastrpc_probe(struct platform_device *pdev)
 	if (of_device_is_compatible(dev->of_node,
 					"qcom,msm-adsprpc-mem-region")) {
 		me->dev = dev;
+		range.addr = 0;
+		ion_node = of_find_compatible_node(NULL, NULL, "qcom,msm-ion");
+		if (ion_node) {
+			for_each_available_child_of_node(ion_node, node) {
+				if (of_property_read_u32(node, "reg", &val))
+					continue;
+				if (val != ION_ADSP_HEAP_ID)
+					continue;
+				ion_pdev = of_find_device_by_node(node);
+				if (!ion_pdev)
+					break;
+				cma = dev_get_cma_area(&ion_pdev->dev);
+				if (cma) {
+					range.addr = cma_get_base(cma);
+					range.size = (size_t)cma_get_size(cma);
+				}
+				break;
+			}
+		}
+		if (range.addr && !of_property_read_bool(dev->of_node,
+							 "restrict-access")) {
+			int srcVM[1] = {VMID_HLOS};
+			int destVM[4] = {VMID_HLOS, VMID_MSS_MSA, VMID_SSC_Q6,
+						VMID_ADSP_Q6};
+			int destVMperm[4] = {PERM_READ | PERM_WRITE | PERM_EXEC,
+				PERM_READ | PERM_WRITE | PERM_EXEC,
+				PERM_READ | PERM_WRITE | PERM_EXEC,
+				PERM_READ | PERM_WRITE | PERM_EXEC,
+				};
+
+			err = hyp_assign_phys(range.addr, range.size,
+					srcVM, 1, destVM, destVMperm, 4);
+			if (err)
+				goto bail;
+			me->range.addr = range.addr;
+			me->range.size = range.size;
+		}
 		ret = of_reserved_mem_device_init_by_idx(dev, dev->of_node, 0);
 		if (ret) {
 			pr_warn("adsprpc: Error: %s: initialization of memory region adsp_mem failed with %d\n",
