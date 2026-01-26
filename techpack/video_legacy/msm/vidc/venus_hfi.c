@@ -39,6 +39,7 @@
 #include "msm_vidc_debug.h"
 #include "venus_hfi.h"
 #include "vidc_hfi_io.h"
+#include "msm_vidc_bus.h"
 
 #define FIRMWARE_SIZE			0X00A00000
 #define REG_ADDR_OFFSET_BITMASK	0x000FFFFF
