@@ -217,3 +217,8 @@ int drm_framebuffer_debugfs_init(struct drm_minor *minor);
 /* drm_hdcp.c */
 int drm_setup_hdcp_srm(struct class *drm_class);
 void drm_teardown_hdcp_srm(struct class *drm_class);
+
+ssize_t dsi_display_mipi_reg_write(struct drm_connector *connector,
+								 char *buf, size_t count);
+ssize_t dsi_display_mipi_reg_read(struct drm_connector *connector,
+								 char *buf);
