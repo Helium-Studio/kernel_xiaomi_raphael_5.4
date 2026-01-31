@@ -2,8 +2,6 @@
 #ifndef __MSM_VIDC_PRIVATE_H__
 #define __MSM_VIDC_PRIVATE_H__
 
-#include <linux/videodev2.h>
-
 /* VIDIOC private video command */
 #define VIDIOC_VIDEO_CMD \
 		_IOWR('V', BASE_VIDIOC_PRIVATE_VIDEO, struct msm_vidc_arg)
