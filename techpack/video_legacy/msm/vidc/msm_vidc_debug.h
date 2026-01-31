@@ -15,8 +15,18 @@
 #define __MSM_VIDC_DEBUG__
 #include <linux/debugfs.h>
 #include <linux/delay.h>
+#include "msm_vidc_events.h"
 #include "msm_vidc_internal.h"
-#include "trace/events/msm_vidc_events.h"
+
+/* Mock all the missing parts for successful compilation starts here */
+#include <linux/types.h>
+#include <linux/time.h>
+#include <linux/interrupt.h>
+#include <soc/qcom/subsystem_restart.h>
+#include "msm_vidc_internal.h"
+
+#define SMEM_IMAGE_VERSION_TABLE 469
+/* Mock all the missing parts for successful compilation ends */
 
 #ifndef VIDC_DBG_LABEL
 #define VIDC_DBG_LABEL "msm_vidc"
@@ -140,7 +150,7 @@ static inline void tic(struct msm_vidc_inst *i, enum profiling_points p,
 		memcpy(i->debug.pdata[p].name, b, 64);
 	if ((msm_vidc_debug & VIDC_PROF) &&
 		i->debug.pdata[p].sampling) {
-		do_gettimeofday(&__ddl_tv);
+		__ddl_tv = ktime_to_timeval(ktime_get_real());
 		i->debug.pdata[p].start =
 			(__ddl_tv.tv_sec * 1000) + (__ddl_tv.tv_usec / 1000);
 			i->debug.pdata[p].sampling = false;
@@ -153,7 +163,7 @@ static inline void toc(struct msm_vidc_inst *i, enum profiling_points p)
 
 	if ((msm_vidc_debug & VIDC_PROF) &&
 		!i->debug.pdata[p].sampling) {
-		do_gettimeofday(&__ddl_tv);
+		__ddl_tv = ktime_to_timeval(ktime_get_real());
 		i->debug.pdata[p].stop = (__ddl_tv.tv_sec * 1000)
 			+ (__ddl_tv.tv_usec / 1000);
 		i->debug.pdata[p].cumulative += i->debug.pdata[p].stop -
