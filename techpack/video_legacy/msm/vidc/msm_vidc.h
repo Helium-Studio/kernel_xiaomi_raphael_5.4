@@ -111,7 +111,8 @@ int msm_vidc_enum_fmt(void *instance, struct v4l2_fmtdesc *f);
 int msm_vidc_s_fmt(void *instance, struct v4l2_format *f);
 int msm_vidc_g_fmt(void *instance, struct v4l2_format *f);
 int msm_vidc_s_ctrl(void *instance, struct v4l2_control *a);
-int msm_vidc_s_ext_ctrl(void *instance, struct v4l2_ext_controls *a);
+int msm_vidc_s_ext_ctrl(void *instance, struct media_device *mdev,
+		struct v4l2_ext_controls *a);
 int msm_vidc_g_ext_ctrl(void *instance, struct v4l2_ext_controls *a);
 int msm_vidc_g_ctrl(void *instance, struct v4l2_control *a);
 int msm_vidc_reqbufs(void *instance, struct v4l2_requestbuffers *b);

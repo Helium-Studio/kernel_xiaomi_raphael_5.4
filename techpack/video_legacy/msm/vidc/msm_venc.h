@@ -23,6 +23,7 @@ int msm_venc_ctrl_init(struct msm_vidc_inst *inst,
 int msm_venc_enum_fmt(void *instance, struct v4l2_fmtdesc *f);
 int msm_venc_s_fmt(void *instance, struct v4l2_format *f);
 int msm_venc_s_ctrl(void *instance, struct v4l2_ctrl *ctrl);
-int msm_venc_s_ext_ctrl(void *instance, struct v4l2_ext_controls *a);
+int msm_venc_s_ext_ctrl(struct msm_vidc_inst *inst, struct media_device *mdev,
+	struct v4l2_ext_controls *ctrl);
 
 #endif

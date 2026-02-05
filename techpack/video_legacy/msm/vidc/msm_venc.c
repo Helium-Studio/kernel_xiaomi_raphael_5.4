@@ -2395,7 +2395,7 @@ int msm_venc_ext_layer_id_update(struct v4l2_ext_control *control,
 	return 0;
 }
 
-int msm_venc_s_ext_ctrl(struct msm_vidc_inst *inst,
+int msm_venc_s_ext_ctrl(struct msm_vidc_inst *inst, struct media_device *mdev,
 	struct v4l2_ext_controls *ctrl)
 {
 	int rc = 0, i;
@@ -2419,7 +2419,7 @@ int msm_venc_s_ext_ctrl(struct msm_vidc_inst *inst,
 	}
 
 	/* This will check the range for contols and clip if necessary */
-	v4l2_try_ext_ctrls(&inst->ctrl_handler, NULL, ctrl);
+	v4l2_try_ext_ctrls(&inst->ctrl_handler, mdev, ctrl);
 
 	hdev = inst->core->device;
 	cap = &inst->capability;

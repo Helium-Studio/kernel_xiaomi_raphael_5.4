@@ -1371,7 +1371,7 @@ int msm_vdec_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 	return rc;
 }
 
-int msm_vdec_s_ext_ctrl(struct msm_vidc_inst *inst,
+int msm_vdec_s_ext_ctrl(struct msm_vidc_inst *inst, struct media_device *mdev,
 	struct v4l2_ext_controls *ctrl)
 {
 	int rc = 0, i = 0;
@@ -1388,7 +1388,7 @@ int msm_vdec_s_ext_ctrl(struct msm_vidc_inst *inst,
 
 	hdev = inst->core->device;
 
-	v4l2_try_ext_ctrls(&inst->ctrl_handler, NULL, ctrl);
+	v4l2_try_ext_ctrls(&inst->ctrl_handler, mdev, ctrl);
 
 	ext_control = ctrl->controls;
 

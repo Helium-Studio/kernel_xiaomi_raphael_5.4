@@ -414,7 +414,8 @@ int msm_vidc_g_ext_ctrl(void *instance, struct v4l2_ext_controls *control)
 }
 EXPORT_SYMBOL(msm_vidc_g_ext_ctrl);
 
-int msm_vidc_s_ext_ctrl(void *instance, struct v4l2_ext_controls *control)
+int msm_vidc_s_ext_ctrl(void *instance, struct media_device *mdev,
+		struct v4l2_ext_controls *control)
 {
 	struct msm_vidc_inst *inst = instance;
 
@@ -422,9 +423,9 @@ int msm_vidc_s_ext_ctrl(void *instance, struct v4l2_ext_controls *control)
 		return -EINVAL;
 
 	if (inst->session_type == MSM_VIDC_DECODER)
-		return msm_vdec_s_ext_ctrl(instance, control);
+		return msm_vdec_s_ext_ctrl(instance, mdev, control);
 	if (inst->session_type == MSM_VIDC_ENCODER)
-		return msm_venc_s_ext_ctrl(instance, control);
+		return msm_venc_s_ext_ctrl(instance, mdev, control);
 	return -EINVAL;
 }
 EXPORT_SYMBOL(msm_vidc_s_ext_ctrl);
