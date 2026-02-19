@@ -47,6 +47,10 @@ void cpufreq_cooling_unregister(struct thermal_cooling_device *cdev)
 }
 #endif	/* CONFIG_CPU_THERMAL */
 
+#if defined(CONFIG_MACH_XIAOMI_SM8150)
+void cpu_limits_set_level(unsigned int cpu, unsigned int max_freq);
+#endif
+
 #if defined(CONFIG_THERMAL_OF) && defined(CONFIG_CPU_THERMAL)
 /**
  * of_cpufreq_cooling_register - create cpufreq cooling device based on DT.
