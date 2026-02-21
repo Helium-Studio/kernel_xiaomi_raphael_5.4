@@ -485,9 +485,14 @@ int crypto_qti_derive_raw_secret(void *priv_data,
 		return err;
 	}
 
-	return crypto_qti_derive_raw_secret_platform(ice_entry,
+	if (wrapped_key_size > 64)
+		err = crypto_qti_derive_raw_secret_platform(ice_entry,
 				wrapped_key, wrapped_key_size,
 				secret, secret_size);
+	else
+		memcpy(secret, wrapped_key, secret_size);
+
+	return err;
 }
 EXPORT_SYMBOL(crypto_qti_derive_raw_secret);
 
