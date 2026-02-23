@@ -18,6 +18,9 @@
 
 #define STEP_CHG_VOTER		"STEP_CHG_VOTER"
 #define JEITA_VOTER		"JEITA_VOTER"
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+#define DYNAMIC_FV_VOTER	"DYNAMIC_FV_VOTER"
+#endif
 
 #define is_between(left, right, value) \
 		(((left) >= (right) && (left) >= (value) \
@@ -40,33 +43,62 @@ struct jeita_fv_cfg {
 	struct range_data		fv_cfg[MAX_STEP_CHG_ENTRIES];
 };
 
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+struct dynamic_fv_cfg {
+	char			*prop_name;
+	struct range_data		fv_cfg[MAX_STEP_CHG_ENTRIES];
+};
+#endif
+
 struct step_chg_info {
 	struct device		*dev;
 	ktime_t			step_last_update_time;
 	ktime_t			jeita_last_update_time;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	ktime_t			dynamic_fv_last_update_time;
+#endif
 	bool			step_chg_enable;
 	bool			sw_jeita_enable;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	bool			dynamic_fv_enable;
+#endif
 	bool			jeita_arb_en;
 	bool			config_is_read;
 	bool			step_chg_cfg_valid;
 	bool			sw_jeita_cfg_valid;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	bool			dynamic_fv_cfg_valid;
+#endif
 	bool			soc_based_step_chg;
 	bool			ocv_based_step_chg;
 	bool			vbat_avg_based_step_chg;
 	bool			batt_missing;
 	bool			taper_fcc;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	bool			six_pin_battery;
+	bool			use_bq_pump;
+#endif
 	int			jeita_fcc_index;
 	int			jeita_fv_index;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	int			dynamic_fv_index;
+#endif
 	int			step_index;
 	int			get_config_retry_count;
 
 	struct step_chg_cfg	*step_chg_config;
 	struct jeita_fcc_cfg	*jeita_fcc_config;
 	struct jeita_fv_cfg	*jeita_fv_config;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	struct dynamic_fv_cfg	*dynamic_fv_config;
+#endif
 
 	struct votable		*fcc_votable;
 	struct votable		*fv_votable;
 	struct votable		*usb_icl_votable;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	struct votable		*dc_suspend_votable;
+#endif
 	struct wakeup_source	*step_chg_ws;
 	struct power_supply	*batt_psy;
 	struct power_supply	*usb_psy;
@@ -76,6 +108,9 @@ struct step_chg_info {
 	struct notifier_block	nb;
 	struct iio_channel	*iio_chans;
 	struct iio_channel	**iio_chan_list_qg;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	struct iio_channel	**iio_chan_list_bq;
+#endif
 };
 
 static struct step_chg_info *the_chip;
@@ -105,7 +140,20 @@ static const char * const step_chg_ext_iio_chan[] = {
 	[STEP_QG_CAPACITY] = "capacity",
 	[STEP_QG_VOLTAGE_OCV] = "voltage_ocv",
 	[STEP_QG_VOLTAGE_AVG] = "voltage_avg",
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	[STEP_QG_CYCLE_COUNT] = "cycle_count",
+	[STEP_QG_CONSTANT_CHARGE_VOLTAGE] =	"constant_charge_voltage",
+#endif
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	[STEP_QG_FFC_TERMINATION_CURRENT] = "ffc_term_current",//qg
+#endif
 };
+
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+static const char * const step_chg_ext_iio_chan_bq[] = {
+	[STEP_BQ_BATTERY_VOLTAGE] = "battery_voltage",//bq
+};
+#endif
 
 static bool is_bms_available(struct step_chg_info *chip)
 {
@@ -132,6 +180,34 @@ static bool is_bms_available(struct step_chg_info *chip)
 
 	return true;
 }
+
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+static bool is_step_bq_available(struct step_chg_info *chip)
+{
+	int rc = 0;
+	struct iio_channel **iio_list;
+
+	if (IS_ERR(chip->iio_chan_list_bq))
+		return false;
+
+	if (!chip->iio_chan_list_bq) {
+		iio_list = get_ext_channels(chip->dev, step_chg_ext_iio_chan_bq,
+				ARRAY_SIZE(step_chg_ext_iio_chan_bq));
+		if (IS_ERR(iio_list)) {
+			rc = PTR_ERR(iio_list);
+			if (rc != -EPROBE_DEFER) {
+				dev_err(chip->dev, "Failed to get channels, %d\n",
+						rc);
+				chip->iio_chan_list_bq = ERR_PTR(-EINVAL);
+			}
+			return false;
+		}
+		chip->iio_chan_list_bq = iio_list;
+	}
+
+	return true;
+}
+#endif
 
 static bool is_usb_available(struct step_chg_info *chip)
 {
@@ -266,6 +342,13 @@ static int step_chg_read_iio_prop(struct step_chg_info *chip,
 			return -ENODEV;
 		iio_chan_list = chip->iio_chan_list_qg[iio_chan];
 		break;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	case BQ://TODO: add and check BQ
+		if (IS_ERR_OR_NULL(chip->iio_chan_list_bq))
+			return -ENODEV;
+		iio_chan_list = chip->iio_chan_list_bq[iio_chan];
+		break;
+#endif
 	default:
 		pr_err_ratelimited("iio_type %d is not supported\n", type);
 		return -EINVAL;
@@ -274,6 +357,34 @@ static int step_chg_read_iio_prop(struct step_chg_info *chip,
 	rc = iio_read_channel_processed(iio_chan_list, val);
 	return (rc < 0) ? rc : 0;
 }
+
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+static int step_chg_write_iio_prop(struct step_chg_info *chip,
+		enum iio_type type, int iio_chan, int val)
+{
+	struct iio_channel *iio_chan_list;
+
+	switch (type) {
+	case QG://TOO move xiaomi-iio in QG
+		if (IS_ERR_OR_NULL(chip->iio_chan_list_qg))
+			return -ENODEV;
+		iio_chan_list = chip->iio_chan_list_qg[iio_chan];
+		break;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	case BQ:
+		if (IS_ERR_OR_NULL(chip->iio_chan_list_bq))
+			return -ENODEV;
+		iio_chan_list = chip->iio_chan_list_bq[iio_chan];
+		break;
+#endif
+	default:
+		pr_err_ratelimited("iio_type %d is not supported\n", type);
+		return -EINVAL;
+	}
+
+	return iio_write_channel_raw(iio_chan_list, val);
+}
+#endif
 
 static int get_step_chg_jeita_setting_from_profile(struct step_chg_info *chip)
 {
@@ -409,6 +520,26 @@ static int get_step_chg_jeita_setting_from_profile(struct step_chg_info *chip)
 		chip->sw_jeita_cfg_valid = false;
 	}
 
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	chip->dynamic_fv_cfg_valid = true;
+	rc = read_range_data_from_node(profile_node,
+			"qcom,dynamic-fv-ranges",
+			chip->dynamic_fv_config->fv_cfg,
+			BATT_HOT_DECIDEGREE_MAX, max_fv_uv);
+	if (rc < 0) {
+		pr_debug("Read qcom,dynamic-fv-ranges failed from battery profile, rc=%d\n",
+					rc);
+		chip->dynamic_fv_cfg_valid = false;
+	}
+
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	chip->six_pin_battery =
+		of_property_read_bool(profile_node, "mi,six-pin-battery");
+	chip->use_bq_pump =
+		of_property_read_bool(profile_node, "qcom,use-bq-pump");
+#endif
+#endif
+
 	return rc;
 }
 
@@ -505,6 +636,16 @@ static int get_val(struct range_data *range, int hysteresis, int current_index,
 		*val = range[*new_index].value;
 	}
 
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	if (threshold < range[0].low_threshold) {
+		*new_index = 0;
+		*val = range[*new_index].value;
+	} else if (threshold > range[MAX_STEP_CHG_ENTRIES - 1].low_threshold) {
+		*new_index = MAX_STEP_CHG_ENTRIES - 1;
+		*val = range[*new_index].value;
+	}
+#endif
+
 	/*
 	 * If we don't have a current_index return this
 	 * newfound value. There is no hysterisis from out of range
@@ -587,10 +728,32 @@ static int handle_step_chg_config(struct step_chg_info *chip)
 	union power_supply_propval pval = {0, };
 	int rc = 0, fcc_ua = 0, current_index;
 	u64 elapsed_us;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	int update_now = 0;
+	static int usb_present;
+#endif
+
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	if (!is_usb_available(chip))
+		return 0;
+	rc = power_supply_get_property(chip->usb_psy,
+			POWER_SUPPLY_PROP_PRESENT, &pval);
+	if (rc < 0) {
+		pr_err("Get battery present status failed, rc=%d\n", rc);
+		return rc;
+	}
+	if (pval.intval && pval.intval != usb_present)
+		update_now = true;
+	usb_present = pval.intval;
+#endif
 
 	elapsed_us = ktime_us_delta(ktime_get(), chip->step_last_update_time);
 	/* skip processing, event too early */
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	if (elapsed_us < STEP_CHG_HYSTERISIS_DELAY_US && !update_now)
+#else
 	if (elapsed_us < STEP_CHG_HYSTERISIS_DELAY_US)
+#endif
 		return 0;
 
 	if (!chip->step_chg_enable || !chip->step_chg_cfg_valid) {
@@ -599,6 +762,15 @@ static int handle_step_chg_config(struct step_chg_info *chip)
 		goto update_time;
 	}
 
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	if (chip->use_bq_pump) { //todo: IIO BQ,
+		if (is_step_bq_available(chip)) {
+			rc = step_chg_read_iio_prop(chip, BQ,
+				STEP_BQ_BATTERY_VOLTAGE, &pval.intval);
+			pval.intval = pval.intval * 1000;
+		}
+	} else {
+#endif
 	if (chip->step_chg_config->param.use_bms) {
 		rc = step_chg_read_iio_prop(chip, QG,
 			chip->step_chg_config->param.iio_prop, &pval.intval);
@@ -609,6 +781,9 @@ static int handle_step_chg_config(struct step_chg_info *chip)
 	else
 		rc = power_supply_get_property(chip->batt_psy,
 				chip->step_chg_config->param.psy_prop, &pval);
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	}
+#endif
 
 	if (rc < 0) {
 		pr_err("Couldn't read %s property rc=%d\n",
@@ -660,12 +835,116 @@ update_time:
 	return 0;
 }
 
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+static int handle_dynamic_fv(struct step_chg_info *chip)
+{
+	union power_supply_propval pval = {0, };
+	int rc = 0, fv_uv, cycle_count;
+	u64 elapsed_us;
+	int batt_vol = 0;
+
+	rc = step_chg_read_iio_prop(chip, MAIN,
+		PSY_IIO_DYNAMIC_FV_ENABLED, &pval.intval); //IIO: QPNP_SMB5 channel
+	if (rc < 0)
+		chip->dynamic_fv_enable = 0;
+	else
+		chip->dynamic_fv_enable = pval.intval;
+
+	if (!chip->dynamic_fv_enable || !chip->dynamic_fv_cfg_valid) {
+		/*need recovery some setting*/
+		if (chip->fv_votable)
+			vote(chip->fv_votable, DYNAMIC_FV_VOTER, false, 0);
+		return 0;
+	}
+
+	elapsed_us = ktime_us_delta(ktime_get(), chip->dynamic_fv_last_update_time);
+	/* skip processing, event too early */
+	if (elapsed_us < STEP_CHG_HYSTERISIS_DELAY_US)
+		return 0;
+
+	rc = step_chg_read_iio_prop(chip, QG,
+			STEP_QG_CYCLE_COUNT, &pval.intval);
+	if (rc < 0) {
+		pr_err("Couldn't read %s property rc=%d\n",
+				chip->dynamic_fv_config->prop_name, rc);
+		return rc;
+	} else {
+		pr_debug("Success read %s property rc=%d\n",
+				chip->dynamic_fv_config->prop_name, rc);
+	}
+	cycle_count = pval.intval;
+
+	rc = get_val(chip->dynamic_fv_config->fv_cfg,
+			0,
+			chip->dynamic_fv_index,
+			cycle_count,
+			&chip->dynamic_fv_index,
+			&fv_uv);
+	if (rc < 0) {
+		/* remove the vote if no step-based fv is found */
+		if (chip->fv_votable)
+			vote(chip->fv_votable, DYNAMIC_FV_VOTER, false, 0);
+		goto update_time;
+	}
+
+	step_chg_read_iio_prop(chip, QG,
+		STEP_QG_VOLTAGE_NOW, &pval.intval);
+	batt_vol = pval.intval;
+	if (batt_vol >= fv_uv) {
+		goto update_time;
+	}
+
+	chip->fv_votable = find_votable("FV");
+	if (!chip->fv_votable)
+		goto update_time;
+
+	vote(chip->fv_votable, DYNAMIC_FV_VOTER, true, fv_uv);
+
+	/*set battery full voltage to FLOAT VOLTAGE - 10mV*/
+	pval.intval = fv_uv - 10000;
+	rc = step_chg_write_iio_prop(chip, QG,
+		STEP_QG_CONSTANT_CHARGE_VOLTAGE, pval.intval);
+	if (rc < 0) {
+		pr_err("Couldn't set CONSTANT VOLTAGE property rc=%d\n", rc);
+		return rc;
+	} else {
+		pr_debug("Success set CONSTANT VOLTAGE property rc=%d\n", rc);
+	}
+
+	pr_debug("%s:cycle_count:%d,Batt_full:%d,fv:%d,\n",
+			__func__, cycle_count, pval.intval, fv_uv);
+
+update_time:
+	chip->dynamic_fv_last_update_time = ktime_get();
+	return 0;
+}
+#endif
+
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+#define JEITA_SUSPEND_HYST_UV		130000
+#elif defined(CONFIG_MACH_XIAOMI_SM8150)
+#define JEITA_SUSPEND_HYST_UV		70000
+#else
 #define JEITA_SUSPEND_HYST_UV		50000
+#endif
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+#define JEITA_SIX_PIN_BATT_HYST_UV	100000
+#define WARM_VFLOAT_UV			4100000
+#endif
 static int handle_jeita(struct step_chg_info *chip)
 {
 	union power_supply_propval pval = {0, };
 	int rc = 0, fcc_ua = 0, fv_uv = 0, data;
 	u64 elapsed_us;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	int update_now = 0;
+	int curr_vfloat_uv, curr_vbat_uv;
+	int temp, pd_authen_result = 0;
+	static bool fast_mode_dis, usb_present;
+	int batt_soc = 0, batt_temp = 0;
+	static bool ffc_temp_is_high;
+	bool set_term_curr_flag = false;
+#endif
 
 	rc = step_chg_read_iio_prop(chip, MAIN, PSY_IIO_SW_JEITA_ENABLED,
 			&data);
@@ -686,9 +965,28 @@ static int handle_jeita(struct step_chg_info *chip)
 		return 0;
 	}
 
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	if (!is_usb_available(chip))
+		return 0;
+
+	rc = power_supply_get_property(chip->usb_psy,
+			POWER_SUPPLY_PROP_PRESENT, &pval);
+	if (rc < 0) {
+		pr_err("Get battery present status failed, rc=%d\n", rc);
+		return rc;
+	}
+	if (pval.intval && pval.intval != usb_present)
+		update_now = true;
+	usb_present = pval.intval;
+#endif
+
 	elapsed_us = ktime_us_delta(ktime_get(), chip->jeita_last_update_time);
 	/* skip processing, event too early */
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	if (elapsed_us < STEP_CHG_HYSTERISIS_DELAY_US && !update_now)
+#else
 	if (elapsed_us < STEP_CHG_HYSTERISIS_DELAY_US)
+#endif
 		return 0;
 
 	if (chip->jeita_fcc_config->param.use_bms) {
@@ -708,6 +1006,9 @@ static int handle_jeita(struct step_chg_info *chip)
 		return rc;
 	}
 
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	temp = pval.intval;
+#endif
 	rc = get_val(chip->jeita_fcc_config->fcc_cfg,
 			chip->jeita_fcc_config->param.hysteresis,
 			chip->jeita_fcc_index,
@@ -723,6 +1024,11 @@ static int handle_jeita(struct step_chg_info *chip)
 		/* changing FCC is a must */
 		return -EINVAL;
 
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	if (rc == -ENODATA)
+		vote(chip->fcc_votable, JEITA_VOTER, true, fcc_ua);
+	else
+#endif
 	vote(chip->fcc_votable, JEITA_VOTER, fcc_ua ? true : false, fcc_ua);
 
 	rc = get_val(chip->jeita_fv_config->fv_cfg,
@@ -734,6 +1040,51 @@ static int handle_jeita(struct step_chg_info *chip)
 	if (rc < 0)
 		fv_uv = 0;
 
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	batt_temp = pval.intval;//todo: check if pval.intval
+	rc = step_chg_read_iio_prop(chip, QG,
+				STEP_QG_CAPACITY, &pval.intval);
+	if (rc < 0) {
+		pr_err("Couldn't read batt_soc fail rc=%d\n", rc);
+		return rc;
+	}
+	batt_soc = pval.intval;
+	pr_info("%s:batt_soc=%d\n", __func__, batt_soc);
+	rc = step_chg_read_iio_prop(chip, MAIN,
+			PSY_IIO_BQ_FASTCHARGE_MODE, &pval.intval); // IIO BQ-FG 4
+	pr_err("%s:fastcharge_mode=%d\n", __func__, pval.intval);
+	if (rc < 0) {
+		pr_err("Couldn't read fastcharge mode fail rc=%d\n", rc);
+		return rc;
+	}
+	if (pval.intval) {//TODO: IIO
+		if (batt_soc < 95) {
+			if (!ffc_temp_is_high && batt_temp > FFC_CHG_TERM_TEMP_THRESHOLD +10) {
+				ffc_temp_is_high = true;
+				set_term_curr_flag = true;
+			} else if (ffc_temp_is_high && batt_temp < FFC_CHG_TERM_TEMP_THRESHOLD-10) {
+				ffc_temp_is_high = false;
+				set_term_curr_flag = true;
+			}
+			if (set_term_curr_flag) {
+				rc = step_chg_read_iio_prop(chip, QG,
+					STEP_QG_FFC_TERMINATION_CURRENT, &pval.intval);// IIO BQ-FG 4
+				if (rc < 0) {
+					pr_err("Couldn't read ffc_term_curr fail rc=%d\n", rc);
+					return rc;
+				}
+				rc = power_supply_set_property(chip->batt_psy,
+						POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT, &pval);
+				if (rc < 0) {
+					pr_err("Set charge_term_curr failed, rc=%d\n", rc);
+					return rc;
+				}
+			}
+		}
+	}
+	pval.intval = batt_temp;
+#endif
+
 	chip->fv_votable = find_votable("FV");
 	if (!chip->fv_votable)
 		goto update_time;
@@ -743,6 +1094,53 @@ static int handle_jeita(struct step_chg_info *chip)
 
 	if (!chip->usb_icl_votable)
 		goto set_jeita_fv;
+
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	/* set and clear fast charge mode when soft jeita trigger and clear */
+	if (chip->six_pin_battery) {//TODO: IIO
+		rc = step_chg_read_iio_prop(chip, MAIN,
+				PSY_IIO_PD_AUTHENTICATION, &pval.intval);
+		if (rc < 0) {
+			pr_err("Get fastcharge mode status failed, rc=%d\n", rc);
+		} else {
+			pr_debug("Get fastcharge mode status success, rc=%d\n", rc);
+		}
+		pd_authen_result = pval.intval;
+
+		rc = step_chg_read_iio_prop(chip, MAIN,
+				PSY_IIO_HVDCP3_TYPE, &pval.intval); // IIO-qpnp-smb5
+		if (rc < 0)
+			pr_err("get hvdcp3_type failed, rc=%d\n", rc);
+
+		if ((pval.intval == HVDCP3_CLASS_B_27W)
+					|| (pd_authen_result == 1)) {
+			if ((temp >= BATT_WARM_THRESHOLD || temp <= BATT_COOL_THRESHOLD)
+						&& !fast_mode_dis) {
+				pval.intval = false;
+				rc = step_chg_write_iio_prop(chip, MAIN,
+						PSY_IIO_BQ_FASTCHARGE_MODE, pval.intval);
+				if (rc < 0) {
+					pr_err("Set fastcharge mode failed, rc=%d\n", rc);
+					return rc;
+				}
+				fast_mode_dis = true;
+			} else if ((temp < BATT_WARM_THRESHOLD - chip->jeita_fv_config->param.hysteresis)
+						&& (temp > BATT_COOL_THRESHOLD + chip->jeita_fv_config->param.hysteresis)
+							&& fast_mode_dis) {
+				pval.intval = true;
+				rc = step_chg_write_iio_prop(chip, MAIN,
+						PSY_IIO_BQ_FASTCHARGE_MODE, pval.intval);
+				if (rc < 0) {
+					pr_err("Set fastcharge mode failed, rc=%d\n", rc);
+					return rc;
+				}
+				fast_mode_dis = false;
+			}
+		} else {
+			fast_mode_dis = false;
+		}
+	}
+#endif
 
 	/*
 	 * If JEITA float voltage is same as max-vfloat of battery then
@@ -759,13 +1157,66 @@ static int handle_jeita(struct step_chg_info *chip)
 	 * Suspend USB input path if battery voltage is above
 	 * JEITA VFLOAT threshold.
 	 */
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	if (fv_uv > 0) {
+#else
 	if (chip->jeita_arb_en && fv_uv > 0) {
+#endif
 		rc = power_supply_get_property(chip->batt_psy,
 				POWER_SUPPLY_PROP_VOLTAGE_NOW, &pval);
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+		if (rc < 0) {
+			pr_err("Get battery voltage failed, rc = %d\n", rc);
+			goto set_jeita_fv;
+		}
+		curr_vbat_uv = pval.intval;
+
+		if (!chip->six_pin_battery) {
+			if ((curr_vbat_uv > fv_uv) && (temp >= BATT_WARM_THRESHOLD))
+				vote(chip->usb_icl_votable, JEITA_VOTER, true, 0);
+			else if (curr_vbat_uv < (fv_uv - JEITA_SUSPEND_HYST_UV))
+				vote(chip->usb_icl_votable, JEITA_VOTER, false, 0);
+		} else {
+			curr_vfloat_uv = get_effective_result(chip->fv_votable);
+
+			rc = power_supply_get_property(chip->batt_psy,
+					POWER_SUPPLY_PROP_CHARGE_TYPE, &pval);
+			if (rc < 0) {
+				pr_err("Get charge type failed, rc = %d\n", rc);
+				goto set_jeita_fv;
+			}
+			// POWER_SUPPLY_CHARGE_TYPE_ADAPTIVE -> POWER_SUPPLY_CHARGE_TYPE_TAPER on kernel 4.19
+			if (curr_vfloat_uv != WARM_VFLOAT_UV) {
+				if (curr_vbat_uv > fv_uv + JEITA_SIX_PIN_BATT_HYST_UV) {
+					if (pval.intval == POWER_SUPPLY_CHARGE_TYPE_ADAPTIVE && fv_uv == WARM_VFLOAT_UV)
+						vote(chip->usb_icl_votable, JEITA_VOTER, true, 0);
+				} else if (curr_vbat_uv < (fv_uv - JEITA_SUSPEND_HYST_UV)) {
+					vote(chip->usb_icl_votable, JEITA_VOTER, false, 0);
+				}
+			} else {
+				pr_info("curr_vbat_uv = %duV,FCC =%duA,FV = %duV\n",curr_vbat_uv, fcc_ua, fv_uv);
+				if (curr_vbat_uv > fv_uv + JEITA_SIX_PIN_BATT_HYST_UV) {
+					if (pval.intval == POWER_SUPPLY_CHARGE_TYPE_ADAPTIVE && fv_uv == WARM_VFLOAT_UV)
+						vote(chip->usb_icl_votable, JEITA_VOTER, true, 0);
+				} else if (curr_vbat_uv < (fv_uv - JEITA_SUSPEND_HYST_UV)) {
+					vote(chip->usb_icl_votable, JEITA_VOTER, false, 0);
+				}
+			}
+		}
+#elif defined(CONFIG_MACH_XIAOMI_SM8150)
+		if (!rc && (pval.intval > fv_uv)) {
+			vote(chip->usb_icl_votable, JEITA_VOTER, true, 0);
+			vote(chip->dc_suspend_votable, JEITA_VOTER, 1, 0);
+		} else if (pval.intval < (fv_uv - JEITA_SUSPEND_HYST_UV)) {
+			vote(chip->usb_icl_votable, JEITA_VOTER, false, 0);
+			vote(chip->dc_suspend_votable, JEITA_VOTER, 0, 0);
+		}
+#else
 		if (!rc && (pval.intval > fv_uv))
 			vote(chip->usb_icl_votable, JEITA_VOTER, true, 0);
 		else if (pval.intval < (fv_uv - JEITA_SUSPEND_HYST_UV))
 			vote(chip->usb_icl_votable, JEITA_VOTER, false, 0);
+#endif
 	}
 
 set_jeita_fv:
@@ -796,6 +1247,9 @@ static int handle_battery_insertion(struct step_chg_info *chip)
 		if (chip->batt_missing) {
 			chip->step_chg_cfg_valid = false;
 			chip->sw_jeita_cfg_valid = false;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+			chip->dynamic_fv_cfg_valid = false;
+#endif
 			chip->get_config_retry_count = 0;
 		} else {
 			/*
@@ -817,7 +1271,11 @@ static void status_change_work(struct work_struct *work)
 	int rc = 0;
 	union power_supply_propval prop = {0, };
 
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	if (!is_batt_available(chip) || !is_bms_available(chip) || !is_usb_available(chip))
+#else
 	if (!is_batt_available(chip) || !is_bms_available(chip))
+#endif
 		goto exit_work;
 
 	handle_battery_insertion(chip);
@@ -826,6 +1284,12 @@ static void status_change_work(struct work_struct *work)
 	rc = handle_jeita(chip);
 	if (rc < 0)
 		pr_err("Couldn't handle sw jeita rc = %d\n", rc);
+
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	rc = handle_dynamic_fv(chip);
+	if (rc < 0)
+		pr_err("Couldn't handle sw dynamic fv rc = %d\n", rc);
+#endif
 
 	rc = handle_step_chg_config(chip);
 	if (rc < 0)
@@ -910,8 +1374,14 @@ int qcom_step_chg_init(struct device *dev, bool step_chg_enable,
 	chip->step_index = -EINVAL;
 	chip->jeita_fcc_index = -EINVAL;
 	chip->jeita_fv_index = -EINVAL;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	chip->dynamic_fv_index = -EINVAL;
+#endif
 	chip->iio_chans = iio_chans;
 	chip->iio_chan_list_qg = NULL;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	chip->iio_chan_list_bq = NULL;
+#endif
 
 	chip->step_chg_config = devm_kzalloc(dev,
 			sizeof(struct step_chg_cfg), GFP_KERNEL);
@@ -921,23 +1391,46 @@ int qcom_step_chg_init(struct device *dev, bool step_chg_enable,
 	chip->step_chg_config->param.psy_prop = POWER_SUPPLY_PROP_VOLTAGE_NOW;
 	chip->step_chg_config->param.iio_prop = STEP_QG_VOLTAGE_NOW;
 	chip->step_chg_config->param.prop_name = "VBATT";
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	chip->step_chg_config->param.hysteresis = 10000;
+#else
 	chip->step_chg_config->param.hysteresis = 100000;
+#endif
 
 	chip->jeita_fcc_config = devm_kzalloc(dev,
 			sizeof(struct jeita_fcc_cfg), GFP_KERNEL);
 	chip->jeita_fv_config = devm_kzalloc(dev,
 			sizeof(struct jeita_fv_cfg), GFP_KERNEL);
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	chip->dynamic_fv_config = devm_kzalloc(dev,
+			sizeof(struct dynamic_fv_cfg), GFP_KERNEL);
+#endif
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	if (!chip->jeita_fcc_config || !chip->jeita_fv_config || !chip->dynamic_fv_config)
+#else
 	if (!chip->jeita_fcc_config || !chip->jeita_fv_config)
+#endif
 		return -ENOMEM;
 
 	chip->jeita_fcc_config->param.psy_prop = POWER_SUPPLY_PROP_TEMP;
 	chip->jeita_fcc_config->param.iio_prop = STEP_QG_TEMP;
 	chip->jeita_fcc_config->param.prop_name = "BATT_TEMP";
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	chip->jeita_fcc_config->param.hysteresis = 5;
+#else
 	chip->jeita_fcc_config->param.hysteresis = 10;
+#endif
 	chip->jeita_fv_config->param.psy_prop = POWER_SUPPLY_PROP_TEMP;
 	chip->jeita_fv_config->param.iio_prop = STEP_QG_TEMP;
 	chip->jeita_fv_config->param.prop_name = "BATT_TEMP";
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	chip->jeita_fv_config->param.hysteresis = 5;
+#else
 	chip->jeita_fv_config->param.hysteresis = 10;
+#endif
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	chip->dynamic_fv_config->prop_name = "BATT_CYCLE_COUNT";
+#endif
 
 	INIT_DELAYED_WORK(&chip->status_change_work, status_change_work);
 	INIT_DELAYED_WORK(&chip->get_config_work, get_config_work);

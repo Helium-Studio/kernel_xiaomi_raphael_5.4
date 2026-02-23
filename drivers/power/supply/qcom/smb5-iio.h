@@ -13,6 +13,9 @@
 enum iio_type {
 	MAIN,
 	QG,
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	BQ,
+#endif
 	CP,
 	SMB_PARALLEL,
 };
@@ -33,7 +36,24 @@ enum qg_chg_iio_channels {
 	SMB5_QG_CYCLE_COUNT,
 	SMB5_QG_CHARGE_FULL_DESIGN,
 	SMB5_QG_TIME_TO_FULL_NOW,
+#ifdef CONFIG_MACH_XIAOMI_VAYU
+	SMB5_QG_FASTCHARGE_MODE,
+	SMB5_QG_SYS_TERMINATION_CURRENT,
+	SMB5_QG_VBATT_FULL_VOL,
+	SMB5_QG_KI_COEFF_CURRENT,
+	SMB5_QG_FFC_TERMINATION_CURRENT,
+	SMB5_QG_SHUTDOWN_DELAY_ENABLE,
+	SMB5_QG_AUTHENTIC,
+#endif
 };
+
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+/* For bq2597x charger */
+enum smblib_bq_ext_iio_chan {
+	SMB5_BQ_BATTERY_VOLTAGE,
+	SMB5_BQ_CHARGING_ENABLED,
+};
+#endif
 
 enum cp_iio_channels {
 	CP_PARALLEL_OUTPUT_MODE,
@@ -57,7 +77,21 @@ enum step_chg_iio_channels {
 	STEP_QG_CAPACITY,
 	STEP_QG_VOLTAGE_OCV,
 	STEP_QG_VOLTAGE_AVG,
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	STEP_QG_CYCLE_COUNT,
+	STEP_QG_CONSTANT_CHARGE_VOLTAGE,
+#endif
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	STEP_QG_FFC_TERMINATION_CURRENT,
+#endif
 };
+
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+/* For bq2597x in step-chg-jeita.c */
+enum step_chg_iio_channels_bq {
+	STEP_BQ_BATTERY_VOLTAGE = 0,
+};
+#endif
 
 /* For battery.c */
 enum bat_cp_iio_channels {
@@ -204,6 +238,22 @@ static const struct smb5_iio_prop_channels smb5_chans_pmic[] = {
 	SMB5_CHAN_ACTIVITY("battery_force_recharge", FORCE_RECHARGE)
 	SMB5_CHAN_ACTIVITY("battery_fcc_stepper_enable", FCC_STEPPER_ENABLE)
 	SMB5_CHAN_INDEX("usb_typec_accessory_mode", TYPEC_ACCESSORY_MODE)
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	SMB5_CHAN_ACTIVITY("pd_authen", PD_AUTHENTICATION)
+	SMB5_CHAN_ACTIVITY("bq_fastcharge_mode", BQ_FASTCHARGE_MODE)
+	SMB5_CHAN_ACTIVITY("pd_remove_compensation", PD_REMOVE_COMPENSATION)
+	SMB5_CHAN_ACTIVITY("hvdcp3_type", HVDCP3_TYPE)
+	SMB5_CHAN_ACTIVITY("type_recheck", TYPE_RECHECK)
+	SMB5_CHAN_INDEX("apdo_max", APDO_MAX)
+	SMB5_CHAN_ACTIVITY("liquid_detection", LIQUID_DETECTION)
+	SMB5_CHAN_ACTIVITY("dynamic_fv_enabled", DYNAMIC_FV_ENABLED)
+	SMB5_CHAN_ACTIVITY("bat_charging_enabled", BATTERY_CHARGING_ENABLED)
+	SMB5_CHAN_INDEX("dc_thermal_levels", DC_THERMAL_LEVELS)
+	SMB5_CHAN_INDEX("dp_dm_bq", DP_DM_BQ)
+	SMB5_CHAN_ACTIVITY("bat_charging_limit", BATTERY_CHARGING_LIMITED)
+	SMB5_CHAN_ACTIVITY("slowly_charging", SLOWLY_CHARGING)
+	SMB5_CHAN_ACTIVITY("bq_input_suspend", BQ_INPUT_SUSPEND)
+#endif
 };
 
 struct iio_channel **get_ext_channels(struct device *dev,

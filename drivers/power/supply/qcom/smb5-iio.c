@@ -40,6 +40,131 @@ int smb5_iio_get_prop(struct smb_charger *chg, int channel, int *val)
 	case PSY_IIO_USB_REAL_TYPE:
 		*val = chg->real_charger_type;
 		break;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	case PSY_IIO_HVDCP3_TYPE:
+#if 1//DEBUG
+#if defined(CONFIG_MACH_XIAOMI_VAYU)//FIX
+		if (chg->real_charger_type != QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3
+				&& chg->real_charger_type != QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3P5) {
+			*val = HVDCP3_NONE; /* 0: none hvdcp3 insert */
+		} else {
+			if (chg->real_charger_type == QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3P5) {
+				if (chg->qc3p5_power_limit_w == 18)
+					*val = HVDCP3P5_CLASSA_18W;
+				else if (chg->qc3p5_power_limit_w == 27)
+					*val = HVDCP3P5_CLASSB_27W;
+				else
+					*val = HVDCP3_NONE;
+			} else { // QC3
+				if (chg->qc_class_ab) {
+					if (chg->is_qc_class_a)
+						*val = HVDCP3_CLASSA_18W; /* 18W hvdcp3 insert */
+					else if (chg->is_qc_class_b)
+						*val = HVDCP3_CLASSB_27W; /* 27W hvdcp3 insert */
+					else
+						*val = HVDCP3_NONE;
+				} else {/* for F10 */
+					if (chg->real_charger_type == QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3)
+						*val = HVDCP3_CLASSA_18W; /* 18W hvdcp3 insert  */
+					else
+						*val = HVDCP3_NONE;
+				}
+			}
+		}
+#else
+		if (chg->real_charger_type != QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3)
+			*val = HVDCP3_NONE; /* 0: none hvdcp3 insert */
+		else {
+			if (chg->is_qc_class_a)
+				*val = HVDCP3_CLASSA_18W; /* 18W hvdcp3 insert */
+			else if (chg->is_qc_class_b)
+				*val = HVDCP3_CLASSB_27W; /* 27W hvdcp3 insert */
+			else
+				*val = HVDCP3_NONE;
+		}
+#endif
+#else
+#if defined(CONFIG_MACH_XIAOMI_VAYU) // FIX
+		pr_info("SMB5: V: HVDCP3_TYPE: real_charger_type=%d, qc3p5_power_limit=%dW, qc_class_ab=%d, class_a=%d, class_b=%d\n",
+			chg->real_charger_type,
+			chg->qc3p5_power_limit_w,
+			chg->qc_class_ab,
+			chg->is_qc_class_a,
+			chg->is_qc_class_b);
+
+		if (chg->real_charger_type != QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3 &&
+		    chg->real_charger_type != QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3P5) {
+
+			*val = HVDCP3_NONE;
+			pr_info("SMB5: V: HVDCP3_TYPE → NONE (no QC3/QC3.5 charger detected)\n");
+
+		} else {
+
+			if (chg->real_charger_type == QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3P5) {
+
+				if (chg->qc3p5_power_limit_w == 18) {
+					*val = HVDCP3P5_CLASSA_18W;
+					pr_info("SMB5: V: HVDCP3_TYPE → QC3.5 Class A (18W)\n");
+				} else if (chg->qc3p5_power_limit_w == 27) {
+					*val = HVDCP3P5_CLASSB_27W;
+					pr_info("SMB5: V: HVDCP3_TYPE → QC3.5 Class B (27W)\n");
+				} else {
+					*val = HVDCP3_NONE;
+					pr_info("SMB5: V: HVDCP3_TYPE → NONE (unsupported QC3.5 wattage)\n");
+				}
+
+			} else { /* QC 3.0 */
+
+				if (chg->qc_class_ab) {
+
+					if (chg->is_qc_class_a) {
+						*val = HVDCP3_CLASSA_18W;
+						pr_info("SMB5: QC3: HVDCP3_TYPE → QC3 Class A (18W)\n");
+					} else if (chg->is_qc_class_b) {
+						*val = HVDCP3_CLASSB_27W;
+						pr_info("SMB5: QC3: HVDCP3_TYPE → QC3 Class B (27W)\n");
+					} else {
+						*val = HVDCP3_NONE;
+						pr_info("SMB5: QC3: HVDCP3_TYPE → NONE (QC class AB but no class flag?)\n");
+					}
+
+				} else { /* F10 fallback */
+
+					if (chg->real_charger_type == QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3) {
+						*val = HVDCP3_CLASSA_18W;
+						pr_info("SMB5: F10: HVDCP3_TYPE → QC3 Class A (fallback 18W)\n");
+					} else {
+						*val = HVDCP3_NONE;
+						pr_info("SMB5: F10: HVDCP3_TYPE → NONE (fallback branch)\n");
+					}
+				}
+			}
+		}
+#else
+		pr_info("SMB5: HVDCP3_TYPE: real_charger_type=%d, class_a=%d, class_b=%d\n",
+			chg->real_charger_type,
+			chg->is_qc_class_a,
+			chg->is_qc_class_b);
+
+		if (chg->real_charger_type != QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3) {
+			*val = HVDCP3_NONE;
+			pr_info("SMB5: HVDCP3_TYPE - NONE (not QC3 charger)\n");
+		} else {
+			if (chg->is_qc_class_a) {
+				*val = HVDCP3_CLASSA_18W;
+				pr_info("SMB5: HVDCP3_TYPE - QC3 Class A (18W)\n");
+			} else if (chg->is_qc_class_b) {
+				*val = HVDCP3_CLASSB_27W;
+				pr_info("SMB5: HVDCP3_TYPE - QC3 Class B (27W)\n");
+			} else {
+				*val = HVDCP3_NONE;
+				pr_info("SMB5: HVDCP3_TYPE - NONE (QC3 but no class flags)\n");
+			}
+		}
+#endif
+#endif
+		break;
+#endif
 	case PSY_IIO_TYPEC_MODE:
 		rc = smblib_get_usb_prop_typec_mode(chg, val);
 		break;
@@ -55,6 +180,19 @@ int smb5_iio_get_prop(struct smb_charger *chg, int channel, int *val)
 	case PSY_IIO_PD_ACTIVE:
 		*val = chg->pd_active;
 		break;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	case PSY_IIO_PD_AUTHENTICATION:
+		*val = chg->pd_verifed;
+		break;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	case PSY_IIO_BQ_FASTCHARGE_MODE:
+		*val = smblib_get_fastcharge_mode(chg);
+		break;
+	case PSY_IIO_PD_REMOVE_COMPENSATION:
+		*val = chg->remove_comp;
+		break;
+#endif
+#endif
 	case PSY_IIO_USB_INPUT_CURRENT_SETTLED:
 		rc = smblib_get_prop_input_current_settled(chg, &pval);
 		if (!rc)
@@ -106,6 +244,11 @@ int smb5_iio_get_prop(struct smb_charger *chg, int channel, int *val)
 	case PSY_IIO_SMB_EN_REASON:
 		*val = chg->cp_reason;
 		break;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	case PSY_IIO_TYPE_RECHECK:
+		rc = smblib_get_prop_type_recheck(chg, val);
+		break;
+#endif
 	case PSY_IIO_MOISTURE_DETECTED:
 		*val = chg->moisture_present;
 		break;
@@ -141,6 +284,11 @@ int smb5_iio_get_prop(struct smb_charger *chg, int channel, int *val)
 	case PSY_IIO_APSD_TIMEOUT:
 		*val = chg->apsd_ext_timeout;
 		break;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	case PSY_IIO_APDO_MAX:
+		*val = chg->apdo_max;
+		break;
+#endif
 	case PSY_IIO_CHARGER_STATUS:
 		*val = 0;
 		if (chg->sdam_base) {
@@ -220,11 +368,13 @@ int smb5_iio_get_prop(struct smb_charger *chg, int channel, int *val)
 	case PSY_IIO_DC_REAL_TYPE:
 		*val = POWER_SUPPLY_TYPE_MAINS;
 		break;
+#ifndef CONFIG_MACH_XIAOMI_SM8150
 	case PSY_IIO_INPUT_VOLTAGE_REGULATION:
 		rc = smblib_get_prop_voltage_wls_output(chg, &pval);
 		if (!rc)
 			*val = pval.intval;
 		break;
+#endif
 	case PSY_IIO_DC_RESET:
 		*val = 0;
 		break;
@@ -232,6 +382,11 @@ int smb5_iio_get_prop(struct smb_charger *chg, int channel, int *val)
 		*val = chg->dcin_aicl_done;
 		break;
 	/* BATTERY */
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	case PSY_IIO_DC_THERMAL_LEVELS:
+		rc = smblib_get_prop_dc_temp_level(chg, val);
+		break;
+#endif
 	case PSY_IIO_CHARGER_TEMP:
 		rc = smblib_get_prop_charger_temp(chg, val);
 		break;
@@ -258,6 +413,11 @@ int smb5_iio_get_prop(struct smb_charger *chg, int channel, int *val)
 	case PSY_IIO_DP_DM:
 		*val = chg->pulse_cnt;
 		break;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	case PSY_IIO_DP_DM_BQ:
+		*val = chg->pulse_cnt;
+		break;
+#endif
 	case PSY_IIO_INPUT_CURRENT_LIMITED:
 		rc = smblib_get_prop_input_current_limited(chg, val);
 		break;
@@ -273,6 +433,31 @@ int smb5_iio_get_prop(struct smb_charger *chg, int channel, int *val)
 	case PSY_IIO_FCC_STEPPER_ENABLE:
 		*val = chg->fcc_stepper_enable;
 		break;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	case PSY_IIO_LIQUID_DETECTION:
+		if (chg->support_liquid == true)
+			rc = smblib_get_prop_liquid_status(chg, val);
+		else
+			*val = 0;
+		break;
+	case PSY_IIO_DYNAMIC_FV_ENABLED:
+		*val = chg->dynamic_fv_enabled;
+		break;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	case PSY_IIO_BATTERY_CHARGING_ENABLED:
+		rc = smblib_get_prop_battery_charging_enabled(chg, val);
+		break;
+	case PSY_IIO_BATTERY_CHARGING_LIMITED:
+		rc = smblib_get_prop_battery_charging_limited(chg, val);
+		break;
+	case PSY_IIO_SLOWLY_CHARGING:
+		rc = smblib_get_prop_battery_slowly_charging(chg, val);
+		break;
+	case PSY_IIO_BQ_INPUT_SUSPEND:
+		rc = smblib_get_prop_battery_bq_input_suspend(chg, val);
+		break;
+#endif
+#endif
 	case PSY_IIO_TYPEC_ACCESSORY_MODE:
 		rc = smblib_get_usb_prop_typec_accessory_mode(chg, val);
 		break;
@@ -295,6 +480,9 @@ int smb5_iio_set_prop(struct smb_charger *chg, int channel, int val)
 	union power_supply_propval pval = {0, };
 	int real_chg_type = chg->real_charger_type;
 	int icl, rc = 0, offset_ua = 0;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	int parallel_output_mode = 0;
+#endif
 
 	switch (channel) {
 	/* USB */
@@ -310,6 +498,31 @@ int smb5_iio_set_prop(struct smb_charger *chg, int channel, int val)
 	case PSY_IIO_PD_ACTIVE:
 		rc = smblib_set_prop_pd_active(chg, val);
 		break;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	case PSY_IIO_PD_AUTHENTICATION:
+		chg->pd_verifed = val;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+		/*if set pd authentication auto set fastcharge mode*/
+		/*do not break here*/
+#else
+		rc = vote(chg->usb_icl_votable, PD_VERIFED_VOTER,
+				!chg->pd_verifed, PD_UNVERIFED_CURRENT);
+		break;
+#endif
+#endif
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	case PSY_IIO_BQ_FASTCHARGE_MODE:
+		power_supply_changed(chg->usb_psy);
+		if (chg->support_ffc) {
+			rc = smblib_set_fastcharge_mode(chg, val);
+		}
+		schedule_delayed_work(&chg->report_soc_decimal_work,
+				msecs_to_jiffies(REPORT_SOC_DECIMAL_MS));
+		break;
+	case PSY_IIO_PD_REMOVE_COMPENSATION:
+		chg->remove_comp = val;
+		break;
+#endif
 	case PSY_IIO_PD_IN_HARD_RESET:
 		rc = smblib_set_prop_pd_in_hard_reset(chg, val);
 		break;
@@ -356,6 +569,10 @@ int smb5_iio_set_prop(struct smb_charger *chg, int channel, int val)
 		if (chg->usb_psy)
 			power_supply_changed(chg->usb_psy);
 		break;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	case PSY_IIO_TYPE_RECHECK:
+		rc = smblib_set_prop_type_recheck(chg, val);
+#endif
 	case PSY_IIO_THERM_ICL_LIMIT:
 		if (!is_client_vote_enabled(chg->usb_icl_votable,
 						THERMAL_THROTTLE_VOTER)) {
@@ -387,6 +604,11 @@ int smb5_iio_set_prop(struct smb_charger *chg, int channel, int val)
 	case PSY_IIO_MOISTURE_DETECTION_EN:
 		smblib_moisture_detection_enable(chg, val);
 		break;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	case PSY_IIO_APDO_MAX:
+		chg->apdo_max = val;
+		break;
+#endif
 	/* MAIN */
 	case PSY_IIO_FLASH_ACTIVE:
 		if ((chg->chg_param.smb_version == PMI632)
@@ -466,8 +688,34 @@ int smb5_iio_set_prop(struct smb_charger *chg, int channel, int val)
 		if (rc < 0)
 			offset_ua = 0;
 
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+		if (chg->six_pin_step_charge_enable) {
+                        rc = smblib_get_prop_from_bms(chg,
+										SMB5_QG_TEMP, &val);
+                        /* if temp out of soft jeita normal zone, do not add fast charge current offset */
+                        if (val >= CP_WARM_THRESHOLD - SOFT_JEITA_HYSTERESIS || val <= CP_COOL_THRESHOLD + SOFT_JEITA_HYSTERESIS
+                                        || chg->index_vfloat == MAX_STEP_ENTRIES - 1)
+
+                                rc = smblib_set_charge_param(chg, &chg->param.fcc, val);
+                        else
+                                rc = smblib_set_charge_param(chg, &chg->param.fcc,val + offset_ua);
+                } else {
+                        if (is_cp_available(chg)) {
+                                rc = smblib_read_iio_prop(chg, CP,
+                                                CP_PARALLEL_OUTPUT_MODE, &val);
+                                if (rc >= 0)
+                                        parallel_output_mode = val;
+                        }
+                        /* only parallel output mode is output to vbat need add offset */
+                        if (parallel_output_mode == QTI_POWER_SUPPLY_PL_OUTPUT_VBAT)
+                                rc = smblib_set_charge_param(chg, &chg->param.fcc, val + offset_ua);
+                        else
+                                rc = smblib_set_charge_param(chg, &chg->param.fcc, val);
+                }
+#else
 		rc = smblib_set_charge_param(chg, &chg->param.fcc,
 						val + offset_ua);
+#endif
 		break;
 	case PSY_IIO_CURRENT_MAX:
 		rc = smblib_set_icl_current(chg, val);
@@ -481,6 +729,12 @@ int smb5_iio_set_prop(struct smb_charger *chg, int channel, int val)
 		rc = smblib_set_prop_dc_reset(chg);
 		break;
 	/* BATTERY */
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	case PSY_IIO_DC_THERMAL_LEVELS:
+		if (chg->support_wireless)
+			rc = smblib_set_prop_dc_temp_level(chg, &pval);
+		break;
+#endif
 	case PSY_IIO_PARALLEL_DISABLE:
 		vote(chg->pl_disable_votable, USER_VOTER, (bool)val, 0);
 		break;
@@ -501,6 +755,12 @@ int smb5_iio_set_prop(struct smb_charger *chg, int channel, int val)
 		if (!chg->flash_active)
 			rc = smblib_dp_dm(chg, val);
 		break;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	case PSY_IIO_DP_DM_BQ:
+		if (chg->use_bq_pump)
+			rc = smblib_dp_dm_bq(chg, val);
+		break;
+#endif
 	case PSY_IIO_INPUT_CURRENT_LIMITED:
 		rc = smblib_set_prop_input_current_limited(chg, val);
 		break;
@@ -524,6 +784,82 @@ int smb5_iio_set_prop(struct smb_charger *chg, int channel, int val)
 	case PSY_IIO_FCC_STEPPER_ENABLE:
 		chg->fcc_stepper_enable = val;
 		break;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	case PSY_IIO_LIQUID_DETECTION:
+		chg->lpd_status = val;
+		power_supply_changed(chg->batt_psy);
+		break;
+	case PSY_IIO_DYNAMIC_FV_ENABLED:
+		chg->dynamic_fv_enabled = !!val;
+		break;
+#endif
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	case PSY_IIO_BATTERY_CHARGING_ENABLED:
+		if (chg->use_bq_pump) {
+			if (val == 0)
+				vote(chg->usb_icl_votable, MAIN_CHG_VOTER,
+							true, MAIN_CHARGER_STOP_ICL);
+			else
+				vote(chg->usb_icl_votable, MAIN_CHG_VOTER,
+							false, 0);
+			rerun_election(chg->usb_icl_votable);
+		}
+		break;
+	case PSY_IIO_BATTERY_CHARGING_LIMITED:
+#if 1 //DEBUG
+		if (chg->use_bq_pump) {
+			if (val == 0) {
+				vote(chg->usb_icl_votable, MAIN_CHG_VOTER,
+							false, MAIN_CHARGER_ICL);
+			} else {
+				if (chg->real_charger_type == QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3)
+					vote(chg->usb_icl_votable, MAIN_CHG_VOTER,
+								true, QC3_CHARGER_ICL);
+				else if (chg->real_charger_type == QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3P5)
+					vote(chg->usb_icl_votable, MAIN_CHG_VOTER,
+								true, QC3P5_CHARGER_ICL);
+				else
+					vote(chg->usb_icl_votable, MAIN_CHG_VOTER,
+								true, MAIN_CHARGER_ICL);
+			}
+			rerun_election(chg->usb_icl_votable);
+		}
+#else
+	pr_info("BATTERY_CHARGING_LIMITED: val=%d, use_bq_pump=%d, real_charger_type=%d\n",
+		val, chg->use_bq_pump, chg->real_charger_type);
+	if (chg->use_bq_pump) {
+		if (val == 0) {
+			pr_info("Charging not limited -> voting MAIN_CHARGER_ICL (%d mA)\n",
+				MAIN_CHARGER_ICL);
+			vote(chg->usb_icl_votable, MAIN_CHG_VOTER,
+			     false, MAIN_CHARGER_ICL);
+		} else {
+			if (chg->real_charger_type == QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3) {
+				pr_info("Charging limited: QC3 detected -> voting QC3_ICL = %d mA\n",
+					QC3_CHARGER_ICL);
+				vote(chg->usb_icl_votable, MAIN_CHG_VOTER,
+				     true, QC3_CHARGER_ICL);
+			} else if (chg->real_charger_type == QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3P5) {
+				pr_info("Charging limited: QC3.5 detected -> voting QC3P5_ICL = %d mA\n",
+					QC3P5_CHARGER_ICL);
+				vote(chg->usb_icl_votable, MAIN_CHG_VOTER,
+				     true, QC3P5_CHARGER_ICL);
+			} else {
+				pr_info("Charging limited: Non-QC charger -> voting MAIN_ICL = %d mA\n",
+					MAIN_CHARGER_ICL);
+				vote(chg->usb_icl_votable, MAIN_CHG_VOTER,
+				     true, MAIN_CHARGER_ICL);
+			}
+		}
+		pr_info("Re-running USB ICL election\n");
+		rerun_election(chg->usb_icl_votable);
+	}
+#endif
+		break;
+	case PSY_IIO_SLOWLY_CHARGING:
+			rc = smblib_set_prop_battery_slowly_charging(chg, val);
+		break;
+#endif
 	default:
 		pr_err("get prop %d is not supported\n", channel);
 		rc = -EINVAL;

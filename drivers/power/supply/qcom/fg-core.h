@@ -90,10 +90,25 @@
 #define FULL_CAPACITY			100
 #define FULL_SOC_RAW			255
 
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+#define FULL_SOC_REPORT_THR		250
+#endif
+
 #define DEBUG_BATT_SOC			67
 #define BATT_MISS_SOC			50
 #define ESR_SOH_SOC			50
 #define EMPTY_SOC			0
+
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+#define VBAT_RESTART_FG_EMPTY_UV		3700000
+#define TEMP_THR_RESTART_FG		150
+#define RESTART_FG_START_WORK_MS		1000
+#define RESTART_FG_WORK_MS		2000
+#define EMPTY_REPORT_SOC		1
+
+#define VBAT_CRITICAL_LOW_THR		2800
+#define EMPTY_DEBOUNCE_TIME_COUNT_MAX		5
+#endif
 
 enum prof_load_status {
 	PROFILE_MISSING,
@@ -330,12 +345,23 @@ struct fg_batt_props {
 	char		*batt_profile;
 	int		float_volt_uv;
 	int		vbatt_full_mv;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	int		ffc_vbatt_full_mv;
+#endif
 	int		fastchg_curr_ma;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	int		nom_cap_uah;
+#endif
 	int		*therm_coeffs;
 	int		therm_ctr_offset;
 	int		therm_pull_up_kohms;
 	int		*rslow_normal_coeffs;
 	int		*rslow_low_coeffs;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	int		ffc_term_curr_ma;
+	int		ffc_low_temp_term_curr_ma;
+	int		ffc_high_temp_term_curr_ma;
+#endif
 };
 
 struct fg_cyc_ctr_data {
@@ -419,12 +445,39 @@ static const struct fg_pt fg_tsmc_osc_table[] = {
 	{  90,		444992 },
 };
 
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+#define BATT_MA_AVG_SAMPLES		8
+struct batt_params {
+	bool		update_now;
+	int		batt_raw_soc;
+	int		batt_soc;
+	int		samples_num;
+	int		samples_index;
+	int		batt_ma_avg_samples[BATT_MA_AVG_SAMPLES];
+	int		batt_ma_avg;
+	int		batt_ma_prev;
+	int		batt_ma;
+	int		batt_mv;
+	int		batt_temp;
+	struct timespec64	last_soc_change_time;
+};
+#endif
+
 struct fg_memif {
 	struct fg_dma_address	*addr_map;
 	int			num_partitions;
 	u16			address_max;
 	u8			num_bytes_per_word;
 };
+
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+struct cold_thermal {
+	int index;
+	int temp_l;
+	int temp_h;
+	int curr_th;
+};
+#endif
 
 struct fg_dev {
 	struct thermal_zone_device	*tz_dev;
@@ -461,6 +514,9 @@ struct fg_dev {
 	u32			mem_if_base;
 	u32			rradc_base;
 	u32			wa_flags;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	int			cycle_count;
+#endif
 	u32			esr_wakeup_ms;
 	u32			awake_status;
 	int			batt_id_ohms;
@@ -478,6 +534,10 @@ struct fg_dev {
 	int			last_recharge_volt_mv;
 	int			delta_temp_irq_count;
 	enum esr_filter_status	esr_flt_sts;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	int			vbatt_full_volt_uv;
+	int			vbat_critical_low_count;
+#endif
 	bool			profile_available;
 	enum prof_load_status	profile_load_status;
 	bool			battery_missing;
@@ -488,19 +548,50 @@ struct fg_dev {
 	bool			use_ima_single_mode;
 	bool			usb_present;
 	bool			twm_state;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	bool			report_full;
+#endif
 	bool			use_dma;
 	bool			qnovo_enable;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	bool			empty_restart_fg;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	bool			profile_already_find;
+	bool			input_present;
+	bool			batt_temp_low;
+	bool			shutdown_delay;
+	/* cold thermal related */
+	struct cold_thermal *cold_thermal_seq;
+	int			cold_thermal_len;
+	int			curr_cold_thermal_level;
+#else
+	bool			input_present;
+#endif
+#endif
 	enum fg_version		version;
 	bool			suspended;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	struct batt_params	param;
+	struct delayed_work	soc_monitor_work;
+#endif
 	struct completion	soc_update;
 	struct completion	soc_ready;
 	struct delayed_work	profile_load_work;
 	struct work_struct	status_change_work;
 	struct work_struct	esr_sw_work;
 	struct delayed_work	sram_dump_work;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	int			fake_authentic;
+	int			fake_chip_ok;
+	int			batt_fake_temp;
+#endif
 	struct work_struct	esr_filter_work;
 	struct alarm		esr_filter_alarm;
 	ktime_t			last_delta_temp_time;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	struct delayed_work	empty_restart_fg_work;
+	struct delayed_work	soc_work;
+#endif
 };
 
 /* Other definitions */
@@ -589,11 +680,19 @@ struct fg_gen4_dt_props {
 	bool	esr_calib_dischg;
 	bool	soc_hi_res;
 	bool	soc_scale_mode;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	bool	shutdown_delay_enable;
+	int	*dec_rate_seq;
+	int	dec_rate_len;
+#endif
 	int	cutoff_volt_mv;
 	int	empty_volt_mv;
 	int	sys_min_volt_mv;
 	int	cutoff_curr_ma;
 	int	sys_term_curr_ma;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	int	ffc_sys_term_curr_ma;
+#endif
 	int	delta_soc_thr;
 	int	vbatt_scale_thr_mv;
 	int	scale_timer_ms;
@@ -622,6 +721,10 @@ struct fg_gen4_dt_props {
 	int	ki_coeff_hi_chg;
 	int	ki_coeff_lo_med_chg_thr_ma;
 	int	ki_coeff_med_hi_chg_thr_ma;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	int	ffc_ki_coeff_lo_med_chg_thr_ma;
+	int	ffc_ki_coeff_med_hi_chg_thr_ma;
+#endif
 	int	ki_coeff_cutoff_gain;
 	int	ki_coeff_full_soc_dischg[2];
 	int	ki_coeff_soc[KI_COEFF_SOC_LEVELS];
@@ -680,6 +783,9 @@ struct fg_gen4_chip {
 	struct votable		*mem_attn_irq_en_votable;
 	struct votable		*fv_votable;
 	struct work_struct	esr_calib_work;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	struct work_struct	vbat_sync_work;
+#endif
 	struct work_struct	soc_scale_work;
 	struct alarm		esr_fast_cal_timer;
 	struct alarm		soc_scale_alarm_timer;
@@ -723,6 +829,10 @@ struct fg_gen4_chip {
 	bool			rapid_soc_dec_en;
 	bool			vbatt_low;
 	bool			chg_term_good;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	bool			fastcharge_mode_enabled;
+	bool			cold_thermal_support;
+#endif
 	bool			soc_scale_mode;
 };
 

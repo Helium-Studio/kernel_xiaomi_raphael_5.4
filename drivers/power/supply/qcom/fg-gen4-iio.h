@@ -103,6 +103,20 @@ static const struct fg_gen4_iio_prop_channels fg_gen4_iio_psy_channels[] = {
 	FG_GEN4_CHAN_POW("power_avg", PSY_IIO_POWER_AVG)
 	FG_GEN4_CHAN_POW("power_now", PSY_IIO_POWER_NOW)
 	FG_GEN4_CHAN_CUR("calibrate", PSY_IIO_CALIBRATE)
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
+	FG_GEN4_CHAN_ACT("shutdown_delay", PSY_IIO_SHUTDOWN_DELAY)
+	FG_GEN4_CHAN_INDEX("soc_decimal", PSY_IIO_SOC_DECIMAL)
+	FG_GEN4_CHAN_INDEX("soc_decimal_rate", PSY_IIO_SOC_DECIMAL_RATE)
+	FG_GEN4_CHAN_TEMP("cold_thermal_lvl", PSY_IIO_COLD_THERMAL_LEVEL)
+	FG_GEN4_CHAN_ACT("fastcharge_mode", PSY_IIO_FASTCHARGE_MODE)
+	FG_GEN4_CHAN_CUR("ffc_term_current", PSY_IIO_FFC_TERMINATION_CURRENT)
+	FG_GEN4_CHAN_CUR("sys_term_current", PSY_IIO_SYS_TERMINATION_CURRENT)
+	FG_GEN4_CHAN_CUR("ffc_sys_term_current", PSY_IIO_FFC_SYS_TERMINATION_CURRENT)
+	FG_GEN4_CHAN_VOLT("vbatt_full_vol", PSY_IIO_VBATT_FULL_VOL)
+	FG_GEN4_CHAN_VOLT("ffc_vbatt_full_vol", PSY_IIO_FFC_VBATT_FULL_VOL)
+	FG_GEN4_CHAN_CUR("ki_coeff_current", PSY_IIO_KI_COEFF_CURRENT)
+	FG_GEN4_CHAN_ACT("shutdown_delay_enable", PSY_IIO_SHUTDOWN_DELAY_ENABLE)
+#endif
 };
 
 enum fg_gen4_ext_iio_channels {
