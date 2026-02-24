@@ -139,10 +139,19 @@ static int of_thermal_get_temp(struct thermal_zone_device *tz,
 	int idx = 0;
 	int agg_temp = 0;
 
+#ifdef CONFIG_THERMAL_GOV_LOW_LIMITS
+	if (data->mode == THERMAL_DEVICE_DISABLED) {
+		*temp = tz->tzp->tracks_low ?
+				THERMAL_TEMP_INVALID_LOW :
+				THERMAL_TEMP_INVALID;
+		return 0;
+	}
+#else
 	if (data->mode == THERMAL_DEVICE_DISABLED) {
 		*temp = THERMAL_TEMP_INVALID;
 		return 0;
 	}
+#endif
 
 	for (idx = 0; idx < data->num_sensor; idx++) {
 		int temp_read = 0;
@@ -638,12 +647,25 @@ static int of_thermal_aggregate_trip_types(struct thermal_zone_device *tz,
 			if (!(BIT(type) & trip_type_mask))
 				continue;
 
+#ifdef CONFIG_THERMAL_GOV_LOW_LIMITS
+		if (!zone->tzp->tracks_low) {
+#endif
 			tt = data->trips[trip].temperature;
 			if (tt > temp && tt < max)
 				max = tt;
 			th = tt - data->trips[trip].hysteresis;
 			if (th < temp && th > min)
 				min = th;
+#ifdef CONFIG_THERMAL_GOV_LOW_LIMITS
+		} else {
+			tt = data->trips[trip].temperature;
+			if (tt < temp && tt > min)
+				min = tt;
+			th = tt + data->trips[trip].hysteresis;
+			if (th > temp && th < max)
+				max = th;
+			}
+#endif
 		}
 	}
 
@@ -1881,6 +1903,11 @@ int __init of_parse_thermal_zones(void)
 #else
 		tzp->slope = tz->slope;
 		tzp->offset = tz->offset;
+#endif
+
+#ifdef CONFIG_THERMAL_GOV_LOW_LIMITS
+		if (of_property_read_bool(child, "tracks-low"))
+			tzp->tracks_low = true;
 #endif
 
 		zone = thermal_zone_device_register(child->name, tz->ntrips,

@@ -36,6 +36,14 @@
 /* use value, which < 0K, to indicate an invalid/uninitialized temperature */
 #define THERMAL_TEMP_INVALID	-274000
 
+#ifdef CONFIG_THERMAL_GOV_LOW_LIMITS
+/*
+ * use a high value for low temp tracking zone,
+ * to indicate an invalid/uninitialized temperature
+ */
+#define THERMAL_TEMP_INVALID_LOW 274000
+#endif
+
 /* Unit conversion macros */
 #define DECI_KELVIN_TO_CELSIUS(t)	({			\
 	long _t = (t);						\
@@ -331,6 +339,14 @@ struct thermal_zone_params {
 	 * 		Used by thermal zone drivers (default 0).
 	 */
 	int offset;
+
+#ifdef CONFIG_THERMAL_GOV_LOW_LIMITS
+	/*
+	 * @tracks_low:	Indicates that the thermal zone params are for
+	 *		temperatures falling below the thresholds.
+	 */
+	bool tracks_low;
+#endif
 };
 
 struct thermal_genl_event {
