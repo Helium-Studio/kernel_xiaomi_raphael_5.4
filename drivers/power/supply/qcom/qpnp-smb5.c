@@ -932,23 +932,14 @@ static int smb5_parse_dt_adc_channels(struct smb_charger *chg)
 {
 	int rc = 0;
 
-#ifdef CONFIG_MACH_XIAOMI_SM8150
-	rc = smblib_get_iio_channel(chg, "usb_in_voltage",
-					&chg->iio.usbin_v_chan);
-	if (rc < 0)
-		return rc;
-#endif
-
 	rc = smblib_get_iio_channel(chg, "mid_voltage", &chg->iio.mid_chan);
 	if (rc < 0)
 		return rc;
 
-#ifndef CONFIG_MACH_XIAOMI_SM8150
 	rc = smblib_get_iio_channel(chg, "usb_in_voltage",
 					&chg->iio.usbin_v_chan);
 	if (rc < 0)
 		return rc;
-#endif
 
 	rc = smblib_get_iio_channel(chg, "chg_temp", &chg->iio.temp_chan);
 	if (rc < 0)
@@ -1336,17 +1327,10 @@ static int smb5_init_usb_psy(struct smb5 *chip)
 	struct power_supply_config usb_cfg = {};
 	struct smb_charger *chg = &chip->chg;
 
-#ifdef CONFIG_MACH_XIAOMI_SM8150
-	chg->usb_psy_desc = usb_psy_desc;
-#endif
 	usb_cfg.drv_data = chip;
 	usb_cfg.of_node = chg->dev->of_node;
 	chg->usb_psy = devm_power_supply_register(chg->dev,
-#ifdef CONFIG_MACH_XIAOMI_SM8150
-						  &chg->usb_psy_desc,
-#else
 						  &usb_psy_desc,
-#endif
 						  &usb_cfg);
 	if (IS_ERR(chg->usb_psy)) {
 		pr_err("Couldn't register USB power supply\n");

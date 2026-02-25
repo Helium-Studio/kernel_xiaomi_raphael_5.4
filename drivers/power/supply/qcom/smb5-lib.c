@@ -1516,9 +1516,6 @@ static const struct apsd_result *smblib_update_usb_type(struct smb_charger *chg)
 	/* if PD is active, APSD is disabled so won't have a valid result */
 	if (chg->pd_active) {
 		chg->real_charger_type = POWER_SUPPLY_TYPE_USB_PD;
-#ifdef CONFIG_MACH_XIAOMI_SM8150
-		chg->usb_psy_desc.type = POWER_SUPPLY_TYPE_USB_PD;
-#endif
 	} else if (chg->qc3p5_detected) {
 		chg->real_charger_type = QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3P5;
 	} else {
@@ -1528,14 +1525,7 @@ static const struct apsd_result *smblib_update_usb_type(struct smb_charger *chg)
 		 */
 		if (!(apsd_result->val == QTI_POWER_SUPPLY_TYPE_USB_FLOAT &&
 			chg->real_charger_type == POWER_SUPPLY_TYPE_USB))
-#ifdef CONFIG_MACH_XIAOMI_SM8150
-		{
-#endif
 			chg->real_charger_type = apsd_result->val;
-#ifdef CONFIG_MACH_XIAOMI_SM8150
-			chg->usb_psy_desc.type = apsd_result->val;
-		}
-#endif
 	}
 
 	smblib_dbg(chg, PR_MISC, "APSD=%s PD=%d QC3P5=%d\n",
@@ -6156,9 +6146,6 @@ static int smblib_handle_usb_current(struct smb_charger *chg,
 			 * real_charger_type
 			 */
 			chg->real_charger_type = POWER_SUPPLY_TYPE_USB;
-#ifdef CONFIG_MACH_XIAOMI_SM8150
-			chg->usb_psy_desc.type = POWER_SUPPLY_TYPE_USB;
-#endif
 			rc = vote(chg->usb_icl_votable, USB_PSY_VOTER,
 						true, usb_current);
 			if (rc < 0)
@@ -7456,7 +7443,6 @@ static void smblib_cc_un_compliant_charge_work(struct work_struct *work)
 	 */
 	if (usb_present && chg->typec_mode == QTI_POWER_SUPPLY_TYPEC_SINK_AUDIO_ADAPTER) {
 		chg->real_charger_type = QTI_POWER_SUPPLY_TYPE_USB_FLOAT;
-		chg->usb_psy_desc.type = QTI_POWER_SUPPLY_TYPE_USB_FLOAT;
 		if ((strcmp(get_effective_client(chg->usb_icl_votable), "OTG_VOTER") == 0) &&
 					(get_effective_result(chg->usb_icl_votable) == 0))
 			vote(chg->usb_icl_votable, OTG_VOTER, false, 0);
@@ -8500,7 +8486,6 @@ static void smblib_handle_apsd_done(struct smb_charger *chg, bool rising)
 #ifdef CONFIG_MACH_XIAOMI_SM8150
 		if (chg->typec_mode == QTI_POWER_SUPPLY_TYPEC_SINK_AUDIO_ADAPTER){
 			chg->real_charger_type = QTI_POWER_SUPPLY_TYPE_USB_FLOAT;
-			chg->usb_psy_desc.type = QTI_POWER_SUPPLY_TYPE_USB_FLOAT;
 			if ((strcmp(get_effective_client(chg->usb_icl_votable), "OTG_VOTER") == 0) &&
 						(get_effective_result(chg->usb_icl_votable) == 0))
 				vote(chg->usb_icl_votable, OTG_VOTER, false, 0);
@@ -8736,7 +8721,6 @@ static void typec_sink_insertion(struct smb_charger *chg)
 	typec_mode = smblib_get_prop_typec_mode(chg);
 	if (usb_present && typec_mode == QTI_POWER_SUPPLY_TYPEC_SINK_AUDIO_ADAPTER) {
 		chg->real_charger_type = QTI_POWER_SUPPLY_TYPE_USB_FLOAT;
-		chg->usb_psy_desc.type = QTI_POWER_SUPPLY_TYPE_USB_FLOAT;
 		if (get_client_vote(chg->usb_icl_votable, SW_ICL_MAX_VOTER) != 500000)
 			vote(chg->usb_icl_votable, SW_ICL_MAX_VOTER, true, 500000);
 		vote(chg->usb_icl_votable, OTG_VOTER, false, 0);

@@ -3514,9 +3514,6 @@ static irqreturn_t fg_vbatt_low_irq_handler(int irq, void *data)
 	int rc, vbatt_mv, msoc_raw;
 	s64 time_us;
 
-#ifdef CONFIG_MACH_XIAOMI_SM8150
-	schedule_work(&chip->vbat_sync_work);
-#endif
 	rc = fg_get_battery_voltage(fg, &vbatt_mv);
 	if (rc < 0)
 		return IRQ_HANDLED;
@@ -4219,14 +4216,6 @@ static void pl_enable_work(struct work_struct *work)
 		vote(chip->cp_disable_votable, ESR_FCC_VOTER, false, 0);
 	vote(fg->awake_votable, ESR_FCC_VOTER, false, 0);
 }
-
-#ifdef CONFIG_MACH_XIAOMI_SM8150
-static void vbat_sync_work(struct work_struct *work)
-{
-	pr_err("sys_sync:vbat_sync_work\n");
-	ksys_sync();
-}
-#endif
 
 static void status_change_work(struct work_struct *work)
 {
@@ -7117,9 +7106,6 @@ static int fg_gen4_probe(struct platform_device *pdev)
 	init_completion(&chip->mem_attn);
 	INIT_WORK(&fg->status_change_work, status_change_work);
 	INIT_WORK(&chip->esr_calib_work, esr_calib_work);
-#ifdef CONFIG_MACH_XIAOMI_SM8150
-	INIT_WORK(&chip->vbat_sync_work, vbat_sync_work);
-#endif
 	INIT_WORK(&chip->soc_scale_work, soc_scale_work);
 	INIT_DELAYED_WORK(&fg->profile_load_work, profile_load_work);
 	INIT_DELAYED_WORK(&fg->sram_dump_work, sram_dump_work);
