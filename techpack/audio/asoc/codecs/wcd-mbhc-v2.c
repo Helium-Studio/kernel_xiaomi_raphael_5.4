@@ -1799,23 +1799,10 @@ static int wcd_mbhc_usbc_ana_event_changed(struct notifier_block *nb,
 static int wcd_mbhc_usbc_ana_init(struct wcd_mbhc *mbhc)
 {
 	struct snd_soc_component *component = mbhc->component;
-	struct snd_soc_card *card = component->card;
-	int i, ret = 0;
+	int ret = 0;
 
 	dev_dbg(component->dev,
 			"%s: usb-c analog setup start\n", __func__);
-
-	for (i = 0; i < WCD_MBHC_PSY_IIO_MAX; i++) {
-		mbhc->ext_iio_channels[i] = devm_iio_channel_get(card->dev,
-						wcd_mbhc_ext_iio_channel_map[i]);
-		if (IS_ERR(mbhc->ext_iio_channels[i])) {
-			dev_err(component->dev,
-					"%s: failed to get %s iio channel\n",
-					__func__, wcd_mbhc_ext_iio_channel_map[i]);
-			ret = PTR_ERR(mbhc->ext_iio_channels[i]);
-			goto err;
-		}
-	}
 
 	INIT_WORK(&mbhc->usbc_ana_legacy_work, wcd_mbhc_usbc_ana_work);
 
@@ -1912,7 +1899,7 @@ static int wcd_mbhc_usbc_ana_event_handler(struct notifier_block *nb,
 
 int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 {
-	int rc = 0;
+	int i, rc = 0;
 	struct snd_soc_component *component;
 	struct snd_soc_card *card;
 	const char *usb_c_dt = "qcom,msm-mbhc-usbc-audio-supported";
@@ -1953,6 +1940,20 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 			dev_dbg(card->dev, "%s: fsa4480 i2c node not found\n",
 				__func__);
 			mbhc_cfg->enable_usbc_analog_legacy = true;
+		}
+	}
+
+	if (mbhc_cfg->enable_usbc_analog_legacy) {
+		for (i = 0; i < WCD_MBHC_PSY_IIO_MAX; i++) {
+			mbhc->ext_iio_channels[i] = devm_iio_channel_get(card->dev,
+							wcd_mbhc_ext_iio_channel_map[i]);
+			if (IS_ERR(mbhc->ext_iio_channels[i])) {
+				dev_err(component->dev,
+						"%s: failed to get %s iio channel\n",
+						__func__, wcd_mbhc_ext_iio_channel_map[i]);
+				rc = PTR_ERR(mbhc->ext_iio_channels[i]);
+				return rc;
+			}
 		}
 	}
 
@@ -2017,6 +2018,7 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 	}
 
 	return rc;
+
 err:
 	if (mbhc_cfg->enable_usbc_analog_legacy) {
 		struct usbc_ana_audio_config *config =
@@ -2038,7 +2040,6 @@ err:
 		if (config->usbc_force_gpio_p)
 			of_node_put(config->usbc_force_gpio_p);
 	}
-
 	dev_dbg(mbhc->component->dev, "%s: leave %d\n", __func__, rc);
 	return rc;
 }
