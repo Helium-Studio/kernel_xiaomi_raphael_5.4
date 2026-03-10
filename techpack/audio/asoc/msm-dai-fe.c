@@ -2914,6 +2914,22 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 		.probe = fe_dai_probe,
 	},
 	{
+#ifdef CONFIG_SND_SOC_SM8150
+		.playback = {
+			.stream_name = "MultiMedia30 Playback",
+			.aif_name = "MM_DL30",
+			.rates = (SNDRV_PCM_RATE_8000_384000|
+					SNDRV_PCM_RATE_KNOT),
+			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
+				    SNDRV_PCM_FMTBIT_S24_LE |
+				    SNDRV_PCM_FMTBIT_S24_3LE |
+				    SNDRV_PCM_FMTBIT_S32_LE),
+			.channels_min = 1,
+			.channels_max = 32,
+			.rate_min =     8000,
+			.rate_max =     384000,
+		},
+#endif
 		.capture = {
 			.stream_name = "MultiMedia30 Capture",
 			.aif_name = "MM_UL30",
