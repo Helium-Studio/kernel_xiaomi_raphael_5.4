@@ -6827,18 +6827,18 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 			__func__, ret);
 	} else {
 		pdata->hph_en1_gpio_p = of_parse_phandle(pdev->dev.of_node,
-							"qcom,hph-en1-gpio", 0);
+							"qcom,hph-gpio-en1", 0);
 		if (!pdata->hph_en1_gpio_p) {
 			dev_dbg(&pdev->dev, "property %s not detected in node %s\n",
-				"qcom,hph-en1-gpio",
+				"qcom,hph-gpio-en1",
 				pdev->dev.of_node->full_name);
 		}
 
 		pdata->hph_en0_gpio_p = of_parse_phandle(pdev->dev.of_node,
-							"qcom,hph-en0-gpio", 0);
+							"qcom,hph-gpio-en0", 0);
 		if (!pdata->hph_en0_gpio_p) {
 			dev_dbg(&pdev->dev, "property %s not detected in node %s\n",
-				"qcom,hph-en0-gpio",
+				"qcom,hph-gpio-en0",
 				pdev->dev.of_node->full_name);
 		}
 	}
