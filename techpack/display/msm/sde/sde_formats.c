@@ -6,7 +6,11 @@
 #define pr_fmt(fmt)	"[drm:%s:%d] " fmt, __func__, __LINE__
 
 #include <drm/drm_fourcc.h>
+#ifdef CONFIG_MMM_NV12_ALIGN
+#include <media/mmm_color_fmt_sm8150.h>
+#else
 #include <media/mmm_color_fmt.h>
+#endif
 
 #include "sde_kms.h"
 #include "sde_formats.h"

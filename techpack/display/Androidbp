@@ -7,6 +7,7 @@ display_headers_out = [
     "display/drm/sde_drm.h",
     "display/hdcp/msm_hdmi_hdcp_mgr.h",
     "display/media/mmm_color_fmt.h",
+    "display/media/mmm_color_fmt_sm8150.h",
     "display/media/msm_sde_rotator.h",
 ]
 
