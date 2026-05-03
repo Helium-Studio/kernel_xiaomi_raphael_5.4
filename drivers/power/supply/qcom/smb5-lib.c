@@ -3453,7 +3453,7 @@ int smblib_get_prop_usb_voltage_max_design(struct smb_charger *chg,
 			val->intval = MICRO_9V;
 			break;
 		}
-		/* else, fallthrough */
+		fallthrough;
 	case QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3P5:
 	case QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3:
 	case POWER_SUPPLY_TYPE_USB_PD:
@@ -3483,7 +3483,7 @@ int smblib_get_prop_usb_voltage_max(struct smb_charger *chg,
 			val->intval = MICRO_9V;
 			break;
 		}
-		/* else, fallthrough */
+		fallthrough;
 	case QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3P5:
 	case QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3:
 		if (chg->chg_param.smb_version == PMI632)
