@@ -532,6 +532,7 @@ struct dwc3_msm {
 
 	struct device_node	*ss_redriver_node;
 	bool			dual_port;
+	bool			charging_disabled; // disable battery charging using USB or IIO.
 
 	bool			perf_mode;
 	bool			usb_data_enabled;
@@ -4772,6 +4773,9 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 
 	mdwc->dual_port = of_property_read_bool(node, "qcom,dual-port");
 
+	mdwc->charging_disabled = of_property_read_bool(node,
+				"qcom,charging-disabled");
+
 	ret = of_property_read_u32(node, "qcom,lpm-to-suspend-delay-ms",
 				&mdwc->lpm_to_suspend_delay);
 	if (ret) {
@@ -5653,6 +5657,9 @@ static int get_chg_type(struct dwc3_msm *mdwc)
 {
 	int ret, value = 0;
 	union power_supply_propval pval = {0};
+
+	if (mdwc->charging_disabled)
+		return -EINVAL;
 
 	switch (mdwc->apsd_source) {
 	case IIO:
