@@ -108,7 +108,6 @@ static int __drv8846_config_pwm(struct drv8846_soc_ctrl *mctrl,
 	pstate.period = pwm->period_ns;
 	pstate.duty_cycle = pwm->duty_ns;
 	pstate.output_type = PWM_OUTPUT_FIXED;
-	pstate.output_pattern = NULL;
 	pr_debug("enable %d\n", pstate.enabled);
 	rc = pwm_apply_state(mctrl->pwm_dev, &pstate);
 	if (rc < 0)
