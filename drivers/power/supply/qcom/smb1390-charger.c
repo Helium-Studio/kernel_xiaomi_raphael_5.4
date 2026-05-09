@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2026 Aman, duckyduckg65@gmail.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -22,7 +23,9 @@
 #include <linux/pmic-voter.h>
 #include <linux/power_supply.h>
 #include <linux/regmap.h>
+#include <linux/iio/iio.h>
 #include <linux/iio/consumer.h>
+#include <linux/qti_power_supply.h>
 
 #define CORE_STATUS1_REG		0x1006
 #define WIN_OV_BIT			BIT(0)
@@ -131,8 +134,10 @@ struct smb1390 {
 	struct votable		*fv_votable;
 	struct votable		*cp_awake_votable;
 
+	/* IIO */
+	struct iio_channel **qpnp_smb5_iio_chan_list;
+
 	/* power supplies */
-	struct power_supply	*usb_psy;
 	struct power_supply	*batt_psy;
 	struct power_supply	*dc_psy;
 
@@ -178,20 +183,63 @@ static int smb1390_masked_write(struct smb1390 *chip, int reg, int mask,
 	return rc;
 }
 
+enum qpnp_smb5_iio_channels {
+	QPNP_SMB5_USB_EN_MODE = 0,
+	QPNP_SMB5_USB_EN_REASON,
+	QPNP_SMB5_USB_INPUT_CURRENT_SETTLED,
+};
+
+static const char * const qpnp_smb5_ext_iio_chan[] = {
+	[QPNP_SMB5_USB_EN_MODE] = "smb_en_mode",
+	[QPNP_SMB5_USB_EN_REASON] = "smb_en_reason",
+	[QPNP_SMB5_USB_INPUT_CURRENT_SETTLED] = "input_current_settled",
+};
+
+static struct iio_channel **get_ext_channels(struct device *dev,
+		 const char *const *channel_map, int size)
+{
+	int i, rc = 0;
+	struct iio_channel **iio_ch_ext;
+
+	iio_ch_ext = devm_kcalloc(dev, size, sizeof(*iio_ch_ext), GFP_KERNEL);
+	if (!iio_ch_ext)
+		return ERR_PTR(-ENOMEM);
+
+	for (i = 0; i < size; i++) {
+		iio_ch_ext[i] = devm_iio_channel_get(dev, channel_map[i]);
+
+		if (IS_ERR(iio_ch_ext[i])) {
+			rc = PTR_ERR(iio_ch_ext[i]);
+			if (rc != -EPROBE_DEFER)
+				dev_err(dev, "%s channel unavailable, %d\n",
+						channel_map[i], rc);
+			return ERR_PTR(rc);
+		}
+	}
+
+	return iio_ch_ext;
+}
+
+static int smb1390_read_iio_prop(struct smb1390 *chip,
+		int iio_chan_id, int *val)
+{
+	struct iio_channel *iio_chan;
+	int rc;
+
+	if (IS_ERR_OR_NULL(chip->qpnp_smb5_iio_chan_list))
+		return -ENODEV;
+	iio_chan = chip->qpnp_smb5_iio_chan_list[iio_chan_id];
+
+	rc = iio_read_channel_processed(iio_chan, val);
+	return rc < 0 ? rc : 0;
+}
+
 static bool is_psy_voter_available(struct smb1390 *chip)
 {
 	if (!chip->batt_psy) {
 		chip->batt_psy = power_supply_get_by_name("battery");
 		if (!chip->batt_psy) {
 			pr_debug("Couldn't find battery psy\n");
-			return false;
-		}
-	}
-
-	if (!chip->usb_psy) {
-		chip->usb_psy = power_supply_get_by_name("usb");
-		if (!chip->usb_psy) {
-			pr_debug("Couldn't find usb psy\n");
 			return false;
 		}
 	}
@@ -255,7 +303,7 @@ out:
 	return true;
 }
 
-static irqreturn_t default_irq_handler(int irq, void *data)
+static irqreturn_t smb1390_default_irq_handler(int irq, void *data)
 {
 	struct smb1390 *chip = data;
 	int i;
@@ -274,42 +322,42 @@ static irqreturn_t default_irq_handler(int irq, void *data)
 static const struct smb_irq smb_irqs[] = {
 	[SWITCHER_OFF_WINDOW_IRQ] = {
 		.name		= "switcher-off-window",
-		.handler	= default_irq_handler,
+		.handler	= smb1390_default_irq_handler,
 		.wake		= true,
 	},
 	[SWITCHER_OFF_FAULT_IRQ] = {
 		.name		= "switcher-off-fault",
-		.handler	= default_irq_handler,
+		.handler	= smb1390_default_irq_handler,
 		.wake		= true,
 	},
 	[TSD_IRQ] = {
 		.name		= "tsd-fault",
-		.handler	= default_irq_handler,
+		.handler	= smb1390_default_irq_handler,
 		.wake		= true,
 	},
 	[IREV_IRQ] = {
 		.name		= "irev-fault",
-		.handler	= default_irq_handler,
+		.handler	= smb1390_default_irq_handler,
 		.wake		= true,
 	},
 	[VPH_OV_HARD_IRQ] = {
 		.name		= "vph-ov-hard",
-		.handler	= default_irq_handler,
+		.handler	= smb1390_default_irq_handler,
 		.wake		= true,
 	},
 	[VPH_OV_SOFT_IRQ] = {
 		.name		= "vph-ov-soft",
-		.handler	= default_irq_handler,
+		.handler	= smb1390_default_irq_handler,
 		.wake		= true,
 	},
 	[ILIM_IRQ] = {
 		.name		= "ilim",
-		.handler	= default_irq_handler,
+		.handler	= smb1390_default_irq_handler,
 		.wake		= true,
 	},
 	[TEMP_ALARM_IRQ] = {
 		.name		= "temp-alarm",
-		.handler	= default_irq_handler,
+		.handler	= smb1390_default_irq_handler,
 		.wake		= true,
 	},
 };
@@ -561,8 +609,7 @@ static int smb1390_notifier_cb(struct notifier_block *nb,
 		return NOTIFY_OK;
 
 	if (strcmp(psy->desc->name, "battery") == 0
-				|| strcmp(psy->desc->name, "usb") == 0
-				|| strcmp(psy->desc->name, "main") == 0) {
+				|| strcmp(psy->desc->name, "usb") == 0) {
 		spin_lock_irqsave(&chip->status_change_lock, flags);
 		if (!chip->status_change_running) {
 			chip->status_change_running = true;
@@ -580,7 +627,7 @@ static void smb1390_status_change_work(struct work_struct *work)
 	struct smb1390 *chip = container_of(work, struct smb1390,
 					    status_change_work);
 	union power_supply_propval pval = {0, };
-	int max_fcc_ma, rc;
+	int max_fcc_ma, rc, val = 0;
 
 	if (!is_psy_voter_available(chip))
 		goto out;
@@ -588,16 +635,14 @@ static void smb1390_status_change_work(struct work_struct *work)
 	vote(chip->disable_votable, SOC_LEVEL_VOTER,
 			smb1390_is_batt_soc_valid(chip) ? false : true, 0);
 
-	rc = power_supply_get_property(chip->usb_psy,
-			POWER_SUPPLY_PROP_SMB_EN_MODE, &pval);
+	rc = smb1390_read_iio_prop(chip, QPNP_SMB5_USB_EN_MODE, &val);
 	if (rc < 0) {
 		pr_err("Couldn't get usb present rc=%d\n", rc);
 		goto out;
 	}
 
-	if (pval.intval == POWER_SUPPLY_CHARGER_SEC_CP) {
-		rc = power_supply_get_property(chip->usb_psy,
-				POWER_SUPPLY_PROP_SMB_EN_REASON, &pval);
+	if (val == QTI_POWER_SUPPLY_CHARGER_SEC_CP) {
+		rc = smb1390_read_iio_prop(chip, QPNP_SMB5_USB_EN_REASON, &val);
 		if (rc < 0) {
 			pr_err("Couldn't get cp reason rc=%d\n", rc);
 			goto out;
@@ -610,7 +655,7 @@ static void smb1390_status_change_work(struct work_struct *work)
 		 * ensures VBUS does not collapse due to the current drawn via
 		 * MID.
 		 */
-		if (pval.intval == POWER_SUPPLY_CP_WIRELESS) {
+		if (val == QTI_POWER_SUPPLY_CP_WIRELESS) {
 			vote(chip->ilim_votable, ICL_VOTER, false, 0);
 			rc = power_supply_get_property(chip->dc_psy,
 					POWER_SUPPLY_PROP_CURRENT_MAX, &pval);
@@ -621,13 +666,12 @@ static void smb1390_status_change_work(struct work_struct *work)
 								pval.intval);
 		} else { /* QC3 or PPS */
 			vote(chip->ilim_votable, WIRELESS_VOTER, false, 0);
-			rc = power_supply_get_property(chip->usb_psy,
-				POWER_SUPPLY_PROP_INPUT_CURRENT_SETTLED, &pval);
+			rc = smb1390_read_iio_prop(chip, QPNP_SMB5_USB_INPUT_CURRENT_SETTLED, &val);
 			if (rc < 0)
 				pr_err("Couldn't get usb icl rc=%d\n", rc);
 			else
 				vote(chip->ilim_votable, ICL_VOTER, true,
-								pval.intval);
+								val);
 		}
 
 		/* input current is always half the charge current */
@@ -655,7 +699,7 @@ static void smb1390_status_change_work(struct work_struct *work)
 		if (rc < 0) {
 			pr_err("Couldn't get charge type rc=%d\n", rc);
 		} else if (pval.intval ==
-				POWER_SUPPLY_CHARGE_TYPE_TAPER) {
+				POWER_SUPPLY_CHARGE_TYPE_ADAPTIVE) {
 			/*
 			 * mutual exclusion is already guaranteed by
 			 * chip->status_change_running
@@ -708,7 +752,7 @@ static void smb1390_taper_work(struct work_struct *work)
 					get_effective_result(chip->fv_votable);
 		}
 
-		if (pval.intval == POWER_SUPPLY_CHARGE_TYPE_TAPER) {
+		if (pval.intval == POWER_SUPPLY_CHARGE_TYPE_ADAPTIVE) {
 			fcc_uA = get_client_vote(chip->fcc_votable, CP_VOTER)
 								- 100000;
 			pr_debug("taper work reducing FCC to %duA\n", fcc_uA);
@@ -898,6 +942,7 @@ static int smb1390_request_interrupts(struct smb1390 *chip)
 static int smb1390_probe(struct platform_device *pdev)
 {
 	struct smb1390 *chip;
+	struct iio_channel **iio_list;
 	int rc;
 
 	chip = devm_kzalloc(&pdev->dev, sizeof(*chip), GFP_KERNEL);
@@ -938,6 +983,19 @@ static int smb1390_probe(struct platform_device *pdev)
 		pr_err("Couldn't init hardware rc=%d\n", rc);
 		goto out_votables;
 	}
+
+	iio_list = get_ext_channels(chip->dev,
+		qpnp_smb5_ext_iio_chan, ARRAY_SIZE(qpnp_smb5_ext_iio_chan));
+	if (IS_ERR(iio_list)) {
+		rc = PTR_ERR(iio_list);
+		if (rc != -EPROBE_DEFER) {
+			dev_err(chip->dev, "Failed to get channels, rc=%d\n",
+					rc);
+			chip->qpnp_smb5_iio_chan_list = ERR_PTR(-EINVAL);
+		}
+		goto out_votables;
+	}
+	chip->qpnp_smb5_iio_chan_list = iio_list;
 
 	chip->nb.notifier_call = smb1390_notifier_cb;
 	rc = power_supply_reg_notifier(&chip->nb);
