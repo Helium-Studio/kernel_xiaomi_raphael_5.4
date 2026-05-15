@@ -32,9 +32,9 @@ enum running_state {
 };
 
 struct op_parameter {
-	uint32_t dir;
-	uint32_t duration_ms;
-	uint32_t period_ns;
+	__u32 dir;
+	__u32 duration_ms;
+	__u32 period_ns;
 };
 
 /* ioctl numbers */
