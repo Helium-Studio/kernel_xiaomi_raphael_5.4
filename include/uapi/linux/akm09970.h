@@ -15,8 +15,6 @@
 #include <linux/types.h>
 #include <linux/ioctl.h>
 
-//#define pr_fmt(fmt) "akm09970: %s: %d " fmt, __func__, __LINE__
-
 #define AKM09970_DRV_NAME       "akm09970"
 #define AKM09970_CLASS_NAME     "akm"
 
@@ -76,10 +74,10 @@
 #define PWM_PERIOD_DEFAULT_NS 1000000
 
 struct akm09970_platform_data {
-	uint8_t  sensor_smr;
-	uint8_t  sensor_mode;
-	uint8_t  sensor_state;
-	uint8_t data[AKM_SENSOR_DATA_SIZE];
+	__u8  sensor_smr;
+	__u8  sensor_mode;
+	__u8  sensor_state;
+	__u8 data[AKM_SENSOR_DATA_SIZE];
 };
 
 /* IOC CMD */
