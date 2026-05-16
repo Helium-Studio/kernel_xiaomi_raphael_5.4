@@ -7024,7 +7024,7 @@ static int fg_gen4_init_iio_psy(struct fg_gen4_chip *chip,
 	indio_dev->info = &fg_gen4_iio_info;
 	indio_dev->dev.parent = fg->dev;
 	indio_dev->dev.of_node = fg->dev->of_node;
-	indio_dev->name = pdev->name;
+	indio_dev->name = "qpnp,qg";
 	indio_dev->modes = INDIO_DIRECT_MODE;
 	indio_dev->channels = chip->iio_chan;
 	indio_dev->num_channels = fg_gen4_num_iio_channels;
