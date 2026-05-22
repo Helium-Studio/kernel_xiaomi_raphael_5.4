@@ -118,6 +118,18 @@ static void selinux_fs_info_free(struct super_block *sb)
 #define SEL_INO_MASK			0x00ffffff
 
 #define TMPBUFLEN	12
+#ifdef CONFIG_SECURITY_SELINUX_CMDLINE_CONTROL
+static bool default_permissive = false;
+static int __init default_selinux_setup(char *str)
+{
+	if (!strcmp(str, "permissive"))
+		default_permissive = true;
+	pr_info("[SELinux] Set default SELinux status to [%s]\n",
+		default_permissive ? "Permissive" : "Enforcing");
+	return 1;
+}
+__setup("androidboot.selinux=", default_selinux_setup);
+#endif
 static ssize_t sel_read_enforce(struct file *filp, char __user *buf,
 				size_t count, loff_t *ppos)
 {
@@ -157,6 +169,10 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 		goto out;
 
 	new_value = !!new_value;
+#ifdef CONFIG_SECURITY_SELINUX_CMDLINE_CONTROL
+	if (default_permissive && !strcmp(current->comm, "init"))
+		new_value = 0;
+#endif
 
 	old_value = enforcing_enabled(state);
 	if (new_value != old_value) {

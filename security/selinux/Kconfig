@@ -61,6 +61,16 @@ config SECURITY_SELINUX_DEVELOP
 	  permissive mode (if permitted by the policy) via
 	  /sys/fs/selinux/enforce.
 
+config SECURITY_SELINUX_CMDLINE_CONTROL
+	bool "Control behavior the androidboot.selinux cmdline"
+	depends on SECURITY_SELINUX_DEVELOP
+	default y
+	help
+	  Some system no longer accept the androidboot.selinux parameter,
+	  causing the Android system core init to always treat isEnforceing
+	  as true, write 1 to /sys/fs/selinux/enforce. This config is used
+	  to control the behavior of selinuxfs on enforce_store.
+
 config SECURITY_SELINUX_AVC_STATS
 	bool "NSA SELinux AVC Statistics"
 	depends on SECURITY_SELINUX
