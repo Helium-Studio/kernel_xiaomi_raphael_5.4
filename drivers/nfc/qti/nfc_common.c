@@ -744,6 +744,7 @@ int nfc_dev_close(struct inode *inode, struct file *filp)
 	return 0;
 }
 
+#if 0
 int is_data_available_for_read(struct nfc_dev *nfc_dev)
 {
 	int ret;
@@ -755,6 +756,7 @@ int is_data_available_for_read(struct nfc_dev *nfc_dev)
 			msecs_to_jiffies(MAX_IRQ_WAIT_TIME));
 	return ret;
 }
+#endif
 
 /* Check for availability of NFC controller hardware */
 int nfcc_hw_check(struct nfc_dev *nfc_dev)
@@ -846,6 +848,7 @@ int nfcc_hw_check(struct nfc_dev *nfc_dev)
 			goto err_nfcc_hw_check;
 		}
 
+#if 0
 		if (nfc_dev->interface == PLATFORM_IF_I2C) {
 			ret = is_data_available_for_read(nfc_dev);
 			if (ret <= 0) {
@@ -855,6 +858,7 @@ int nfcc_hw_check(struct nfc_dev *nfc_dev)
 				goto err_nfcc_hw_check;
 			}
 		}
+#endif
 
 		ret = nfc_dev->nfc_read(nfc_dev, nci_get_version_rsp,
 					NCI_GET_VERSION_RSP_LEN);
@@ -878,6 +882,7 @@ int nfcc_hw_check(struct nfc_dev *nfc_dev)
 		goto err_nfcc_reset_failed;
 	}
 
+#if 0
 	if (nfc_dev->interface == PLATFORM_IF_I2C) {
 		ret = is_data_available_for_read(nfc_dev);
 		if (ret <= 0) {
@@ -888,6 +893,7 @@ int nfcc_hw_check(struct nfc_dev *nfc_dev)
 			goto err_nfcc_hw_check;
 		}
 	}
+#endif
 
 	/* Read Response of RESET command */
 	ret = nfc_dev->nfc_read(nfc_dev, nci_reset_rsp, NCI_RESET_RSP_LEN);
@@ -897,6 +903,7 @@ int nfcc_hw_check(struct nfc_dev *nfc_dev)
 		goto err_nfcc_hw_check;
 	}
 
+#if 0
 	if (nfc_dev->interface == PLATFORM_IF_I2C) {
 		ret = is_data_available_for_read(nfc_dev);
 		if (ret <= 0) {
@@ -906,6 +913,7 @@ int nfcc_hw_check(struct nfc_dev *nfc_dev)
 			goto err_nfcc_hw_check;
 		}
 	}
+#endif
 
 	/* Read Notification of RESET command */
 	ret = nfc_dev->nfc_read(nfc_dev, nci_reset_ntf, NCI_RESET_NTF_LEN);
