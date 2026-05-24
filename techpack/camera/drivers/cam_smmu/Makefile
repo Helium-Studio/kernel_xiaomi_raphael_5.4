@@ -1,0 +1,4 @@
+ccflags-y += -I$(srctree)/techpack/camera/drivers/cam_utils
+ccflags-y += -I$(srctree)/techpack/camera/drivers/cam_req_mgr
+
+obj-$(CONFIG_SPECTRA_CAMERA) += cam_smmu_api.o
