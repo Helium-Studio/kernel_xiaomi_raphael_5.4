@@ -6,6 +6,7 @@
  */
 
 #include <linux/mm.h>
+#include <linux/msm_ion_ids.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
@@ -14,6 +15,9 @@
 #define CREATE_TRACE_POINTS
 #include "ion_trace.h"
 #include "ion_private.h"
+
+#define ION_LEGACY_QSECOM_TA_HEAP_ID	BIT(19)
+#define ION_LEGACY_QSECOM_HEAP_ID	BIT(27)
 
 static atomic_long_t total_heap_bytes;
 
@@ -138,6 +142,16 @@ struct ion_buffer *ion_buffer_alloc(struct ion_device *dev, size_t len,
 
 	if (!dev || !len) {
 		return ERR_PTR(-EINVAL);
+	}
+
+	if (heap_id_mask & ION_LEGACY_QSECOM_TA_HEAP_ID) {
+		heap_id_mask &= ~ION_LEGACY_QSECOM_TA_HEAP_ID;
+		heap_id_mask |= ION_QSECOM_TA_HEAP_ID;
+	}
+
+	if (heap_id_mask & ION_LEGACY_QSECOM_HEAP_ID) {
+		heap_id_mask &= ~ION_LEGACY_QSECOM_HEAP_ID;
+		heap_id_mask |= ION_QSECOM_HEAP_ID;
 	}
 
 	if (heap_id_mask & ION_HEAP_SYSTEM) {
