@@ -2269,6 +2269,13 @@ static int sde_rotator_qbuf(struct file *file, void *fh,
 		ctx->vbinfo_out[idx].dqbuf_ts = NULL;
 	}
 
+	/*
+	 * Legacy Qualcomm userspace uses bit 23 as
+	 * V4L2_QCOM_BUF_DROP_FRAME. Linux 5.4 reuses that bit for the
+	 * Request API, which this rotator does not support.
+	 */
+	buf->flags &= ~V4L2_BUF_FLAG_REQUEST_FD;
+
 	ret = v4l2_m2m_qbuf(file, ctx->fh.m2m_ctx, buf);
 	if (ret < 0)
 		SDEDEV_ERR(ctx->rot_dev->dev, "fail qbuf s:%d t:%d r:%d\n",
