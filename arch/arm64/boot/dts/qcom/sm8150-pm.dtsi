@@ -107,7 +107,7 @@
 					reg = <1>;
 					compatible = "arm,idle-state";
 					idle-state-name = "rail-pc";
-					entry-latency-us = <2411>;
+					entry-latency-us = <241>;
 					exit-latency-us = <1461>;
 					min-residency-us = <4488>;
 					arm,psci-suspend-param = <0x40000004>;
